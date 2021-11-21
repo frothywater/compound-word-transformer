@@ -4,9 +4,8 @@ import pickle
 import numpy as np
 
 
-TEST_AMOUNT = 50
 WINDOW_SIZE = 512
-GROUP_SIZE = 15
+GROUP_SIZE = 5  # Group size should be smaller since the skeleton files are shorter
 MAX_LEN = WINDOW_SIZE * GROUP_SIZE
 COMPILE_TARGET = 'XL' # 'linear', 'XL'
 print('[config] MAX_LEN:', MAX_LEN)
@@ -50,21 +49,9 @@ def traverse_dir(
     return file_list
     
 
-if __name__ == '__main__':
-    # paths
-    path_root = 'ailab17k_from-scratch_remi'
-    path_indir = os.path.join( path_root, 'words')
-
-    # load dictionary
-    path_dictionary = os.path.join(path_root, 'dictionary.pkl')
-    event2word, word2event = pickle.load(open(path_dictionary, 'rb'))
-    eos_id = event2word['EOS_None']
-    print(' > eos_id:', eos_id)
-
-    # load all words
-    wordfiles = traverse_dir(
-            path_indir,
-            extension=('npy'))
+def compile(path_root: str):
+    # path
+    path_indir = os.path.join(path_root, 'words')
 
     # load dictionary
     path_dictionary = os.path.join(path_root, 'dictionary.pkl')
@@ -141,7 +128,7 @@ if __name__ == '__main__':
     print(' > mask_final:', mask_final.shape)
     
     # split train/test
-    validation_songs = json.load(open('../validation_songs.json', 'r'))
+    validation_songs = []   # No songs for validation right now
     train_idx = []
     test_idx = []
 
@@ -169,7 +156,8 @@ if __name__ == '__main__':
     train_idx = np.array(train_idx)
 
     # save validation map 
-    with open('valid_fn_idx_map.json', 'w') as f:
+    path_valid_map = os.path.join(path_root, 'valid_fn_idx_map.json')
+    with open(path_valid_map, 'w') as f:
         json.dump(fn_idx_map, f)
 
     # save train
@@ -182,18 +170,17 @@ if __name__ == '__main__':
         seq_len=np.array(seq_len_list)[train_idx],        
         num_groups=np.array(num_groups_list)[train_idx]
     )
+    print(' > train x:', x_final[train_idx].shape)
 
     # save test
-    path_test = os.path.join(path_root, 'test_data_{}.npz'.format(COMPILE_TARGET))
-    np.savez(
-        path_test, 
-        x=x_final[test_idx],
-        y=y_final[test_idx],
-        mask=mask_final[test_idx],
-        seq_len=np.array(seq_len_list)[test_idx],
-        num_groups=np.array(num_groups_list)[test_idx]
-    )
-
-    print('---')
-    print(' > train x:', x_final[train_idx].shape)
-    print(' >  test x:', x_final[test_idx].shape)
+    if len(test_idx):
+        path_test = os.path.join(path_root, 'test_data_{}.npz'.format(COMPILE_TARGET))
+        np.savez(
+            path_test, 
+            x=x_final[test_idx],
+            y=y_final[test_idx],
+            mask=mask_final[test_idx],
+            seq_len=np.array(seq_len_list)[test_idx],
+            num_groups=np.array(num_groups_list)[test_idx]
+        )
+        print(' >  test x:', x_final[test_idx].shape)

@@ -138,10 +138,8 @@ def corpus2event_remi_v2(path_infile, path_outfile):
     return len(final_sequence)
 
 
-if __name__ == '__main__':
-    # paths
-    path_root = './ailab17k_from-scratch_remi'
-    path_indir = '../../../corpus'
+def corpus2events(path_root: str):
+    path_indir = os.path.join(path_root, 'corpus')
     path_outdir = os.path.join(path_root, 'events')
     os.makedirs(path_outdir, exist_ok=True)
 
@@ -152,7 +150,7 @@ if __name__ == '__main__':
         is_pure=True,
         is_sort=True)
     n_files = len(midifiles)
-    print('num fiels:', n_files)
+    print('num files:', n_files)
 
     # run all
     len_list = []

@@ -15,7 +15,7 @@ import seaborn as sns
 BEAT_RESOL = 480
 BAR_RESOL = BEAT_RESOL * 4
 TICK_RESOL = BEAT_RESOL // 4
-INSTR_NAME_MAP = {'piano': 0}
+INSTR_NAME_MAP = {}
 MIN_BPM = 40
 MIN_VELOCITY = 40
 NOTE_SORTING = 1 #  0: ascending / 1: descending
@@ -74,9 +74,12 @@ def proc_one(path_midi, path_outfile):
     # load notes
     instr_notes = collections.defaultdict(list)
     for instr in midi_obj.instruments:
-        # skip 
+        # skip (Don't skip!)
         if instr.name not in INSTR_NAME_MAP.keys():
-            continue
+            max_index = -1
+            if len(INSTR_NAME_MAP):
+                max_index = max([item[1] for item in INSTR_NAME_MAP.items()])
+            INSTR_NAME_MAP[instr.name] = max_index + 1
 
         # process
         instr_idx = INSTR_NAME_MAP[instr.name]
@@ -112,11 +115,11 @@ def proc_one(path_midi, path_outfile):
     labels.sort(key=lambda x: x.time)
 
     # load global bpm
-    gobal_bpm = 120
+    global_bpm = 120
     for marker in midi_obj.markers:
         if marker.text.split('_')[0] == 'global' and \
             marker.text.split('_')[1] == 'bpm':
-            gobal_bpm = int(marker.text.split('_')[2])
+            global_bpm = int(marker.text.split('_')[2])
         
     # --- process items to grid --- #
     # compute empty bar offset at head
@@ -130,7 +133,7 @@ def proc_one(path_midi, path_outfile):
     print(' > last_bar:', last_bar)
 
     # process notes
-    intsr_gird = dict()
+    instr_grid = dict()
     for key in instr_notes.keys():
         notes = instr_notes[key]
         note_grid = collections.defaultdict(list)
@@ -161,7 +164,7 @@ def proc_one(path_midi, path_outfile):
             note_grid[quant_time].append(note)
         
         # set to track
-        intsr_gird[key] = note_grid.copy()
+        instr_grid[key] = note_grid.copy()
 
     # process chords
     chord_grid = collections.defaultdict(list)
@@ -198,16 +201,16 @@ def proc_one(path_midi, path_outfile):
         label_grid[quant_time] = [label]
         
     # process global bpm
-    gobal_bpm = DEFAULT_BPM_BINS[np.argmin(abs(DEFAULT_BPM_BINS-gobal_bpm))]
+    global_bpm = DEFAULT_BPM_BINS[np.argmin(abs(DEFAULT_BPM_BINS-global_bpm))]
 
     # collect
     song_data = {
-        'notes': intsr_gird,
+        'notes': instr_grid,
         'chords': chord_grid,
         'tempos': tempo_grid,
         'labels': label_grid,
         'metadata': {
-            'global_bpm': gobal_bpm,
+            'global_bpm': global_bpm,
             'last_bar': last_bar,
         }
     }
@@ -218,10 +221,10 @@ def proc_one(path_midi, path_outfile):
     pickle.dump(song_data, open(path_outfile, 'wb'))
 
 
-if __name__ == '__main__':
+def midi2corpus(path_root: str):
      # paths
-    path_indir = './midi_analyzed'
-    path_outdir = './corpus'
+    path_indir = os.path.join(path_root, 'midi')
+    path_outdir = os.path.join(path_root, 'corpus')
     os.makedirs(path_outdir, exist_ok=True)
 
     # list files
@@ -230,7 +233,7 @@ if __name__ == '__main__':
         is_pure=True,
         is_sort=True)
     n_files = len(midifiles)
-    print('num fiels:', n_files)
+    print('num files:', n_files)
 
     # run all
     for fidx in range(n_files):

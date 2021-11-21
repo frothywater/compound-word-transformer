@@ -41,9 +41,7 @@ def traverse_dir(
     return file_list
 
 
-if __name__ == '__main__':
-    # paths
-    path_root = 'ailab17k_from-scratch_remi'
+def events2words(path_root: str):
     path_indir = os.path.join(path_root, 'events')
     path_outdir =  os.path.join(path_root, 'words')
     path_dictionary = os.path.join(path_root, 'dictionary.pkl')
