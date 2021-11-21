@@ -129,7 +129,6 @@ dmypy.json
 .pyre/
 
 __pycache__/
-.vscode/
 .ipynb_checkpoints/
 .DS_Store
 miditoolkit.egg-info/
@@ -138,3 +137,7 @@ miditoolkit.egg-info/
 *.pypirc
 Thumbs.db
 *.gz
+
+# custom
+.history/
+data/
