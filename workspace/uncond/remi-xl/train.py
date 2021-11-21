@@ -44,7 +44,8 @@ def main():
             
 
 def get_configs():
-    cfg = yaml.full_load(open("config.yml", 'r')) 
+    path_config = os.path.join(os.path.dirname(__file__), "config.yml")
+    cfg = yaml.full_load(open(path_config, 'r')) 
 
     modelConfig = cfg['MODEL']
     trainConfig = cfg['TRAIN']

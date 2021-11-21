@@ -14,7 +14,8 @@ import numpy as np
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
 
 def main():
-    cfg = yaml.full_load(open("config.yml", 'r')) 
+    path_config = os.path.join(os.path.dirname(__file__), "config.yml")
+    cfg = yaml.full_load(open(path_config, 'r')) 
     inferenceConfig = cfg['INFERENCE']
     
     os.environ['CUDA_VISIBLE_DEVICES'] = inferenceConfig['gpuID']
@@ -68,7 +69,7 @@ def main():
         print(midi_folder, output_prefix + str(idx))
         song_time, word_len = model.inference(
             model_path = model_path,
-            token_lim=7680,
+            token_lim=600,
             strategies=['temperature', 'nucleus'],
             params={'t': 1.2, 'p': 0.9},
             bpm=120,
@@ -90,8 +91,8 @@ def main():
         'ave song time': float(np.mean(song_time_list)),
     }
     
-
-    with open('runtime_stats.json', 'w') as f:
+    path_runtime_stats = os.path.join(midi_folder, "runtime_stats.json")
+    with open(path_runtime_stats, 'w') as f:
         json.dump(runtime_result, f)
 
 if __name__ == '__main__':
