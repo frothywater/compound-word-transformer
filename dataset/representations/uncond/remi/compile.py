@@ -8,6 +8,7 @@ WINDOW_SIZE = 512
 GROUP_SIZE = 5  # Group size should be smaller since the skeleton files are shorter
 MAX_LEN = WINDOW_SIZE * GROUP_SIZE
 COMPILE_TARGET = 'XL' # 'linear', 'XL'
+VALID_COUNT = 500
 print('[config] MAX_LEN:', MAX_LEN)
 
 
@@ -128,38 +129,9 @@ def compile(path_root: str):
     print(' > mask_final:', mask_final.shape)
     
     # split train/test
-    validation_songs = []   # No songs for validation right now
-    train_idx = []
-    test_idx = []
-
-    # validation filename map
-    fn_idx_map = {
-        'fn2idx': dict(),
-        'idx2fn': dict(),
-    }
-
-    # run split
-    valid_cnt = 0
-    for nidx, n in enumerate(name_list):
-        flag = True
-        for fn in validation_songs:  
-            if fn in n:
-                test_idx.append(nidx)
-                flag = False
-                fn_idx_map['fn2idx'][fn] = valid_cnt
-                fn_idx_map['idx2fn'][valid_cnt] = fn
-                valid_cnt += 1
-                break
-        if flag:
-            train_idx.append(nidx)  
-    test_idx = np.array(test_idx)
-    train_idx = np.array(train_idx)
-
-    # save validation map 
-    path_valid_map = os.path.join(path_root, 'valid_fn_idx_map.json')
-    with open(path_valid_map, 'w') as f:
-        json.dump(fn_idx_map, f)
-
+    test_idx = np.random.choice(num_samples, VALID_COUNT, replace=False)
+    train_idx = np.setdiff1d(np.arange(num_samples), test_idx)
+    
     # save train
     path_train = os.path.join(path_root, 'train_data_{}.npz'.format(COMPILE_TARGET))
     np.savez(
