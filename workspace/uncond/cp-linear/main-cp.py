@@ -39,6 +39,7 @@ MODE = 'train'
 ###--- data ---###
 path_data_root = '..../dataset/representations/uncond/cp/ailab17k_from-scratch_cp'
 path_train_data = os.path.join(path_data_root, 'train_data_linear.npz')
+path_test_data = os.path.join(path_data_root, 'test_data_linear.npz')
 path_dictionary =  os.path.join(path_data_root, 'dictionary.pkl')
 
 ###--- training config ---###
@@ -396,7 +397,7 @@ class TransformerModel(nn.Module):
 
         return  y_tempo, y_chord, y_barbeat, y_pitch, y_duration, y_velocity
 
-    def froward_output_sampling(self, h, y_type):
+    def forward_output_sampling(self, h, y_type):
         '''
         for inference
         '''
@@ -477,7 +478,7 @@ class TransformerModel(nn.Module):
             print('------ generate ------')
             while(True):
                 # sample others
-                next_arr = self.froward_output_sampling(h, y_type)
+                next_arr = self.forward_output_sampling(h, y_type)
                 final_res.append(next_arr[None, ...])
                 print('bar:', cnt_bar, end= '  ==')
                 print_word_cp(next_arr)
@@ -515,6 +516,7 @@ def train():
     dictionary = pickle.load(open(path_dictionary, 'rb'))
     event2word, word2event = dictionary
     train_data = np.load(path_train_data)
+    valid_data = np.load(path_test_data)
 
     # create saver
     saver_agent = saver.Saver(path_exp)
@@ -530,7 +532,6 @@ def train():
     # init
     net = TransformerModel(n_class)
     net.cuda()
-    net.train()
     n_parameters = network_paras(net)
     print('n_parameters: {:,}'.format(n_parameters))
     saver_agent.add_summary_msg(
@@ -564,6 +565,8 @@ def train():
     for epoch in range(n_epoch):
         acc_loss = 0
         acc_losses = np.zeros(7)
+
+        net.train()
 
         for bidx in range(num_batch): # num_batch 
             saver_agent.global_step_increment()
@@ -605,6 +608,9 @@ def train():
             # log
             saver_agent.add_summary('batch loss', loss.item())
         
+        # validate
+        val_losses = validate(net, valid_data)
+
         # epoch loss
         runtime = time.time() - start_time
         epoch_loss = acc_loss / num_batch
@@ -633,6 +639,45 @@ def train():
         else:
             saver_agent.save_model(net, name='loss_high')
 
+
+def validate(net: TransformerModel, valid_data):
+    # unpack
+    valid_x = valid_data['x']
+    valid_y = valid_data['y']
+    valid_mask = valid_data['mask']
+    num_batch = len(valid_x) // batch_size
+
+    net.eval()
+    all_losses = []
+
+    with torch.no_grad():
+        for bidx in range(num_batch): # num_batch 
+            # index
+            bidx_st = batch_size * bidx
+            bidx_ed = batch_size * (bidx + 1)
+
+            # unpack batch data
+            batch_x = valid_x[bidx_st:bidx_ed]
+            batch_y = valid_y[bidx_st:bidx_ed]
+            batch_mask = valid_mask[bidx_st:bidx_ed]
+
+            # to tensor
+            batch_x = torch.from_numpy(batch_x).long().cuda()
+            batch_y = torch.from_numpy(batch_y).long().cuda()
+            batch_mask = torch.from_numpy(batch_mask).float().cuda()
+
+            # run
+            losses_tensor = net.train_step(batch_x, batch_y, batch_mask)
+            losses = [loss.item() for loss in losses_tensor]
+            avg_loss = np.mean(losses)
+            all_losses.append(losses)
+
+            # print
+            sys.stdout.write('Valid: {}/{} | Loss: {:06f} | {:04f}, {:04f}, {:04f}, {:04f}, {:04f}, {:04f}, {:04f}\r'.format(
+                bidx, num_batch, avg_loss, losses[0], losses[1], losses[2], losses[3], losses[4], losses[5], losses[6]))
+            sys.stdout.flush()
+    
+    return np.mean(all_losses)
 
 def generate():
     # path
