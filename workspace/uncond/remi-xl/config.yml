@@ -29,9 +29,9 @@ MODEL:
 
 TRAIN: 
     ROOT: './data'
-    gpuID: '1'
+    gpuID: '2'
     output_dir: "./data/train"
-    batch_size: 20
+    batch_size: 22
     lr: 0.0002
     num_epochs: 600
     save_freq: 10

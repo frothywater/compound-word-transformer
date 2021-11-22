@@ -30,7 +30,7 @@ TICK_RESOL = BEAT_RESOL // 4
 INSTR_NAME_MAP = {'piano': 0, 'melody': 1}
 
 
-def wrtie_midi(words, path_midi, word2event):
+def write_midi(words, path_midi, word2event):
     notes_all = []
 
     events = [word2event[words[i]] for i in range(len(words))]
@@ -197,7 +197,55 @@ class TransformerXL(object):
         else:
             df.to_csv(os.path.join(checkpoint_dir, 'loss.csv'), mode='a', header=False,  index=False)
 
-    def train(self, train_data, trainConfig, device, resume):
+    def validate(self, val_data, batch_size, model: MemTransformerLM):
+        val_x = val_data['x']
+        val_y = val_data['y']
+        mask = val_data['mask']
+        num_groups = val_data['num_groups']
+        num_batches = len(val_x) // batch_size
+
+        model.eval()
+        val_loss = []
+        with torch.no_grad():
+            for bidx in range(num_batches):
+                    # index
+                    bidx_st = batch_size * bidx
+                    bidx_ed = batch_size * (bidx + 1)
+
+                    # get batch
+                    batch_x = val_x[bidx_st:bidx_ed]
+                    batch_y = val_y[bidx_st:bidx_ed]
+                    batch_mask = mask[bidx_st:bidx_ed]
+                    n_group = np.max(num_groups[bidx_st:bidx_ed])
+
+                    # proc groups
+                    mems = tuple()
+                    for gidx in range(n_group):
+                        group_x = batch_x[:, gidx, :]
+                        group_y = batch_y[:, gidx, :]
+                        group_mask = batch_mask[:, gidx, :]
+                        
+                        group_x = torch.from_numpy(group_x).permute(1, 0).contiguous().to(self.device).long()  # (seq_len, bsz)
+                        group_y = torch.from_numpy(group_y).permute(1, 0).contiguous().to(self.device).long()
+                        group_mask = torch.from_numpy(group_mask).to(self.device).float()
+                        
+                        ret = model(group_x, group_y, group_mask, *mems)
+                        loss, mems = ret[0], ret[1:]
+                        val_loss.append(loss.item())
+
+                        sys.stdout.write('Validation, batch: {:4d}/{:4d}, group: {:2d}/{:2d} | Loss: {:6f}\r'.format(
+                            bidx,
+                            num_batches,
+                            gidx,
+                            n_group, 
+                            val_loss[-1]
+                        ))
+                        sys.stdout.flush()
+        
+        return np.mean(val_loss)
+
+
+    def train(self, train_data, val_data, trainConfig, device, resume):
         checkpoint_dir = trainConfig['experiment_Dir']
         batch_size = trainConfig['batch_size']
         data_ROOT = trainConfig['ROOT']
@@ -282,18 +330,16 @@ class TransformerXL(object):
 
                 optimizer.step()
 
-            #val_loss = self.validate(val_data, batch_size, model, trainConfig["seed"], trainConfig['max_eval_steps'])
+            val_loss = self.validate(val_data, batch_size, model)
             curr_train_loss = sum(train_loss) / len(train_loss)
             saver_agent.add_summary('epoch loss', curr_train_loss)
+            saver_agent.add_summary('valid loss', val_loss)
 
-            #epoch_val_loss.append(val_loss)
             epoch_train_loss.append(curr_train_loss)
-            # epoch_info = 'Train Loss: {:.5f} , Val Loss: {:.5f}, T: {:.3f}'.format(curr_train_loss, val_loss, time.time()-st_time)
-            epoch_info = 'Epoch: {}, Train Loss: {:.5f} ,  T: {:.3f}'.format(epoch+1, curr_train_loss, time.time()-st_time)
+            epoch_info = 'Epoch: {}, Train Loss: {:.5f} , Val Loss: {:.5f}, T: {:.3f}'.format(epoch+1, curr_train_loss, val_loss, time.time()-st_time)
             print(epoch_info)
 
-            # self.train_loss_record(epoch, curr_train_loss, checkpoint_dir, val_loss)
-            self.train_loss_record(epoch, curr_train_loss, checkpoint_dir)
+            self.train_loss_record(epoch, curr_train_loss, checkpoint_dir, val_loss)
             self.save_checkpoint({
                     'epoch': epoch + 1,
                     'model_setting': self.modelConfig,
@@ -365,7 +411,7 @@ class TransformerXL(object):
                 generate_n_bar += 1
             
 
-        wrtie_midi(words[0], output_path, self.word2event)
+        write_midi(words[0], output_path, self.word2event)
 
         song_total_time = time.time() - song_init_time
         print('Total words generated: ', len(words[0]))

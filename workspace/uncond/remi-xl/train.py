@@ -20,6 +20,7 @@ def main():
 
     # load train data
     training_data = np.load(os.path.join(trainConfig['ROOT'],'train_data_XL.npz'))
+    valid_data = np.load(os.path.join(trainConfig['ROOT'],'test_data_XL.npz'))
 
     device = torch.device("cuda:{}".format(trainConfig['gpuID']) if not trainConfig["no_cuda"] and torch.cuda.is_available() else "cpu")
     os.environ['CUDA_VISIBLE_DEVICES'] = trainConfig['gpuID']
@@ -38,6 +39,7 @@ def main():
 
     # train
     model.train(training_data,
+                valid_data,
                 trainConfig,
                 device,
                 resume)
