@@ -3,14 +3,31 @@ import numpy as np
 from matplotlib import pyplot as plt
 import os
 
-path_exp = "data/train/20211121-093814"
-path_csv = os.path.join(path_exp, "loss.csv")
-path_png = os.path.join(path_exp, "loss_figure.png")
+path_exp = "data/train"
 
+def main():
+    for root, dirs, _ in os.walk(path_exp):
+        for dir in dirs:
+            path_dir = os.path.join(root, dir)
+            plot(path_dir)
+        
 
-csv_file = pd.read_csv(path_csv)
-array = csv_file.values
-plt.xlabel("epoch")
-plt.ylabel("loss")
-plt.plot(array[20:, 0], array[20:, 1])
-plt.savefig(path_png)
+def plot(path_dir: str, start_index = 0):
+    path_csv = os.path.join(path_dir, "loss.csv")
+    path_png = os.path.join(path_dir, "loss_figure.png")
+
+    csv_file = pd.read_csv(path_csv)
+    array = csv_file.values
+    plt.xlabel("epoch")
+    x = array[start_index:, 0]
+    train_loss = array[start_index:, 1]
+    plt.plot(x, train_loss, label="train_loss")
+    if len(array[0]) > 2:
+        valid_loss = array[start_index:, 2]
+        plt.plot(x, valid_loss, label="valid_loss")
+    plt.legend()
+    plt.savefig(path_png)
+    plt.close()
+
+if __name__ == "__main__":
+    main()
