@@ -69,7 +69,7 @@ def main():
         print(midi_folder, output_prefix + str(idx))
         song_time, word_len = model.inference(
             model_path = model_path,
-            token_lim=600,
+            token_lim=400,
             strategies=['temperature', 'nucleus'],
             params={'t': 1.2, 'p': 0.9},
             bpm=120,

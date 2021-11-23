@@ -2,13 +2,14 @@ import os
 import json
 import pickle
 import numpy as np
+import math
 
 
 WINDOW_SIZE = 512
 GROUP_SIZE = 5  # Group size should be smaller since the skeleton files are shorter
 MAX_LEN = WINDOW_SIZE * GROUP_SIZE
 COMPILE_TARGET = 'XL' # 'linear', 'XL'
-VALID_COUNT = 500
+VALID_RATIO = 0.05
 print('[config] MAX_LEN:', MAX_LEN)
 
 
@@ -129,7 +130,8 @@ def compile(path_root: str):
     print(' > mask_final:', mask_final.shape)
     
     # split train/test
-    test_idx = np.random.choice(num_samples, VALID_COUNT, replace=False)
+    valid_count = math.trunc(VALID_RATIO * num_samples)
+    test_idx = np.random.choice(num_samples, valid_count, replace=False)
     train_idx = np.setdiff1d(np.arange(num_samples), test_idx)
     
     # save train

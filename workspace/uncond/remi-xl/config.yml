@@ -9,7 +9,7 @@ MODEL:
     dropatt: 0.0            # attention probability dropout rate
     query_dim: 16           # 64
     seq_len: 512            # 512
-    n_token: 227
+    n_token: 221
     mem_len: 512            # Corpus-related parameter
     ext_len: 0
     tgt_len: 70
@@ -28,12 +28,12 @@ MODEL:
 
 
 TRAIN: 
-    ROOT: './data'
-    gpuID: '2'
-    output_dir: "./data/train"
+    ROOT: 'data'
+    gpuID: '1'
+    output_dir: "data/train"
     batch_size: 22
     lr: 0.0002
-    num_epochs: 600
+    num_epochs: 200
     save_freq: 10
     seed: 2222
     optim: 'adam'
@@ -42,11 +42,11 @@ TRAIN:
 
 
 INFERENCE:
-    num_sample: 5
-    gpuID: '1'
-    dictionary_path: './data/dictionary.pkl'
-    experiment_dir: './data/train/'
-    generated_dir: './data/generated'
-    checkpoint_type: best_train    # best_train, best_val, epoch_idx
-    model_epoch: 
+    num_sample: 50
+    gpuID: '2'
+    dictionary_path: 'data/dictionary.pkl'
+    experiment_dir: 'data/train/'
+    generated_dir: 'data/generated'
+    checkpoint_type: epoch_idx    # best_train, best_val, epoch_idx
+    model_epoch: 10
     no_cuda: False
