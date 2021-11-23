@@ -2,14 +2,18 @@ import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 import os
+import sys
 
 path_exp = "data/train"
 
 def main():
+    start_index = None
+    if len(sys.argv) > 1:
+        start_index = int(sys.argv[1])
     for root, dirs, _ in os.walk(path_exp):
         for dir in dirs:
             path_dir = os.path.join(root, dir)
-            plot(path_dir)
+            plot(path_dir, start_index=start_index)
         
 
 def plot(path_dir: str, start_index = 0):
