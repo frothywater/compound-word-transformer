@@ -86,7 +86,6 @@ def network_paras(model):
     params = sum([np.prod(p.size()) for p in model_parameters])
     return params
 
-
 class TransformerXL(object):
     def __init__(self, modelConfig, device, event2word, word2event, is_training=True):
 
@@ -175,8 +174,10 @@ class TransformerXL(object):
         return st_eopch ,model.to(self.device)
 
 
-    def save_checkpoint(self, state, root, save_freq=10):
-        if state['epoch'] % save_freq == 0:
+    def save_checkpoint(self, state, root, save_freq=10, best=False):
+        if best:
+            torch.save(state, os.path.join(root,'model_best_val.pth.tar'))
+        elif state['epoch'] % save_freq == 0:
             torch.save(state, os.path.join(root,'ep_{}.pth.tar'.format(state['epoch'])))
 
     def train_loss_record(self, epoch, train_loss,checkpoint_dir, val_loss=None):
@@ -261,7 +262,10 @@ class TransformerXL(object):
         else:
             st_epoch, model = self.get_model()
 
-        optimizer = optim.Adam(model.parameters(), lr=trainConfig['lr'])
+        optimizer = optim.AdamW(model.parameters(),
+            lr=trainConfig['lr'],
+            betas=(trainConfig['optim_adam_beta1'], trainConfig['optim_adam_beta2']),
+            weight_decay=trainConfig['weight_decay'])
         train_step = 0
         epoch_train_loss = []
         save_freq = trainConfig['save_freq']
@@ -278,7 +282,11 @@ class TransformerXL(object):
         num_groups = train_data['num_groups'] 
 
         num_batches = len(train_x ) // batch_size
-        
+
+        all_val_loss = []
+        min_val_loss = float("inf")
+        min_val_loss_epoch = 0
+
         print('>>> Start training')
         for epoch in range(st_epoch, trainConfig['num_epochs']):
             saver_agent.global_step_increment()
@@ -331,6 +339,13 @@ class TransformerXL(object):
                 optimizer.step()
 
             val_loss = self.validate(val_data, batch_size, model)
+            all_val_loss.append(val_loss)
+            current_min_val_loss = False
+            if val_loss < min_val_loss:
+                min_val_loss = val_loss
+                min_val_loss_epoch = epoch
+                current_min_val_loss = True
+
             curr_train_loss = sum(train_loss) / len(train_loss)
             saver_agent.add_summary('epoch loss', curr_train_loss)
             saver_agent.add_summary('valid loss', val_loss)
@@ -347,13 +362,17 @@ class TransformerXL(object):
                     'state_dict': model.state_dict(),
                     'best_loss': curr_train_loss,
                     'optimizer' : optimizer.state_dict(),
-                                }, 
-                    checkpoint_dir, 
-                    save_freq)
+                },  checkpoint_dir, save_freq, best=current_min_val_loss)
 
             if curr_train_loss < 0.01:
                 print('Experiment [{}] finished at loss < 0.01.'.format(checkpoint_dir))
                 break
+
+            # Check valid_loss of last N epochs
+            if epoch - min_val_loss_epoch >= 5:
+                print('Experiment [{}] finished because no valid_loss drop since last 5 epochs.'.format(checkpoint_dir))
+                break
+
 
     def inference(self, model_path, token_lim, strategies, params, bpm, output_path):
         _, model = self.get_model(model_path)
