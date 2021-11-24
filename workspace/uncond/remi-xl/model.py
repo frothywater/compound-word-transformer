@@ -1,4 +1,5 @@
 import sys
+from typing import Tuple
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -174,8 +175,8 @@ class TransformerXL(object):
         return st_eopch ,model.to(self.device)
 
 
-    def save_checkpoint(self, state, root, save_freq=10, best=False):
-        if best:
+    def save_checkpoint(self, state, root, save_freq=10, best_val=False):
+        if best_val:
             torch.save(state, os.path.join(root,'model_best_val.pth.tar'))
         elif state['epoch'] % save_freq == 0:
             torch.save(state, os.path.join(root,'ep_{}.pth.tar'.format(state['epoch'])))
@@ -220,7 +221,7 @@ class TransformerXL(object):
                     n_group = np.max(num_groups[bidx_st:bidx_ed])
 
                     # proc groups
-                    mems = tuple()
+                    mems: tuple = tuple()
                     for gidx in range(n_group):
                         group_x = batch_x[:, gidx, :]
                         group_y = batch_y[:, gidx, :]
@@ -246,7 +247,7 @@ class TransformerXL(object):
         return np.mean(val_loss)
 
 
-    def train(self, train_data, val_data, trainConfig, device, resume):
+    def train(self, train_data, val_data, trainConfig, resume, stop_valid_loss):
         checkpoint_dir = trainConfig['experiment_Dir']
         batch_size = trainConfig['batch_size']
         data_ROOT = trainConfig['ROOT']
@@ -266,7 +267,6 @@ class TransformerXL(object):
             lr=trainConfig['lr'],
             betas=(trainConfig['optim_adam_beta1'], trainConfig['optim_adam_beta2']),
             weight_decay=trainConfig['weight_decay'])
-        train_step = 0
         epoch_train_loss = []
         save_freq = trainConfig['save_freq']
         
@@ -283,9 +283,11 @@ class TransformerXL(object):
 
         num_batches = len(train_x ) // batch_size
 
-        all_val_loss = []
-        min_val_loss = float("inf")
-        min_val_loss_epoch = 0
+        if val_data:
+            all_val_loss = []
+            if stop_valid_loss:
+                min_val_loss = float("inf")
+                min_val_loss_epoch = 0
 
         print('>>> Start training')
         for epoch in range(st_epoch, trainConfig['num_epochs']):
@@ -338,23 +340,29 @@ class TransformerXL(object):
 
                 optimizer.step()
 
-            val_loss = self.validate(val_data, batch_size, model)
-            all_val_loss.append(val_loss)
-            current_min_val_loss = False
-            if val_loss < min_val_loss:
-                min_val_loss = val_loss
-                min_val_loss_epoch = epoch
-                current_min_val_loss = True
+            if val_data:
+                val_loss = self.validate(val_data, batch_size, model)
+                all_val_loss.append(val_loss)
+                saver_agent.add_summary('valid loss', val_loss)
+                if stop_valid_loss:
+                    current_min_val_loss = False
+                    if val_loss < min_val_loss:
+                        min_val_loss = val_loss
+                        min_val_loss_epoch = epoch
+                        current_min_val_loss = True
+            best_val = val_data is not None and current_min_val_loss
 
             curr_train_loss = sum(train_loss) / len(train_loss)
             saver_agent.add_summary('epoch loss', curr_train_loss)
-            saver_agent.add_summary('valid loss', val_loss)
 
             epoch_train_loss.append(curr_train_loss)
-            epoch_info = 'Epoch: {}, Train Loss: {:.5f} , Val Loss: {:.5f}, T: {:.3f}'.format(epoch+1, curr_train_loss, val_loss, time.time()-st_time)
+            epoch_info = f"Epoch: {epoch+1}, Train Loss: {curr_train_loss:.5f}"
+            if val_data:
+                epoch_info += f", Valid Loss: {val_loss}"
+            epoch_info += f", T: {time.time() - st_time:.3f}"
             print(epoch_info)
 
-            self.train_loss_record(epoch, curr_train_loss, checkpoint_dir, val_loss)
+            self.train_loss_record(epoch, curr_train_loss, checkpoint_dir)
             self.save_checkpoint({
                     'epoch': epoch + 1,
                     'model_setting': self.modelConfig,
@@ -362,16 +370,16 @@ class TransformerXL(object):
                     'state_dict': model.state_dict(),
                     'best_loss': curr_train_loss,
                     'optimizer' : optimizer.state_dict(),
-                },  checkpoint_dir, save_freq, best=current_min_val_loss)
+                },  checkpoint_dir, save_freq, best_val)
 
             if curr_train_loss < 0.01:
                 print('Experiment [{}] finished at loss < 0.01.'.format(checkpoint_dir))
                 break
 
-            # Check valid_loss of last N epochs
-            if epoch - min_val_loss_epoch >= 5:
-                print('Experiment [{}] finished because no valid_loss drop since last 5 epochs.'.format(checkpoint_dir))
-                break
+            if val_data is not None and stop_valid_loss:
+                if epoch - min_val_loss_epoch >= 5:
+                    print('Experiment [{}] finished because no valid_loss drop since last 5 epochs.'.format(checkpoint_dir))
+                    break
 
 
     def inference(self, model_path, token_lim, strategies, params, bpm, output_path):
