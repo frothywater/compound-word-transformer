@@ -1,6 +1,7 @@
 import json
 import os
 import pickle
+import re
 
 import numpy as np
 import torch
@@ -8,61 +9,50 @@ import yaml
 
 from model import TransformerXL
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+path_root = "data"
 
 
-def main():
-    path_config = os.path.join(os.path.dirname(__file__), "config.yml")
-    cfg = yaml.full_load(open(path_config, "r"))
-    inferenceConfig = cfg["INFERENCE"]
+def inference_uncond(epoch: int, inference_config):
+    os.environ["CUDA_VISIBLE_DEVICES"] = inference_config["gpuID"]
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = inferenceConfig["gpuID"]
-
-    print("=" * 2, "Inferenc configs", "=" * 5)
-    print(json.dumps(inferenceConfig, indent=1, sort_keys=True))
+    print("=" * 2, "Inference configs", "=" * 5)
+    print(json.dumps(inference_config, indent=1, sort_keys=True))
 
     # checkpoint information
-    CHECKPOINT_FOLDER = inferenceConfig["experiment_dir"]
-    midi_folder = inferenceConfig["generated_dir"]
+    train_id = inference_config["train_id"]
+    path_checkpoint = os.path.join(path_root, "train", str(train_id))
+    midi_folder = os.path.join(path_root, "generated")
 
-    checkpoint_type = inferenceConfig["checkpoint_type"]
-    if checkpoint_type == "best_train":
-        model_path = os.path.join(CHECKPOINT_FOLDER, "model_best.pth.tar")
-        output_prefix = "best_train_"
-    elif checkpoint_type == "best_val":
-        model_path = os.path.join(CHECKPOINT_FOLDER, "model_best_val.pth.tar")
-        output_prefix = "best_val_"
-    elif checkpoint_type == "epoch_idx":
-        model_path = os.path.join(CHECKPOINT_FOLDER, "ep_{}.pth.tar".format(str(inferenceConfig["model_epoch"])))
-        output_prefix = str(inferenceConfig["model_epoch"]) + "_"
+    model_path = os.path.join(path_checkpoint, f"ep_{epoch}.pth.tar")
+    output_prefix = f"ep_{epoch}_"
 
-    pretrainCfg = yaml.full_load(open(os.path.join(CHECKPOINT_FOLDER, "config.yml"), "r"))
-    modelConfig = pretrainCfg["MODEL"]
+    pretrain_config = yaml.full_load(open(os.path.join(path_checkpoint, "config.yml"), "r"))
+    model_config = pretrain_config["MODEL"]
 
     # create result folder
     if not os.path.exists(midi_folder):
         os.mkdir(midi_folder)
 
     # load dictionary
-    event2word, word2event = pickle.load(open(inferenceConfig["dictionary_path"], "rb"))
+    event2word, word2event = pickle.load(open(os.path.join(path_root, "dictionary.pkl"), "rb"))
 
     # declare model
-    device = torch.device("cuda" if not inferenceConfig["no_cuda"] and torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if not inference_config["no_cuda"] and torch.cuda.is_available() else "cpu")
     print("Device to generate:", device)
 
     # declare model
-    model = TransformerXL(modelConfig, device, event2word=event2word, word2event=word2event, is_training=False)
+    model = TransformerXL(model_config, device, event2word=event2word, word2event=word2event, is_training=False)
 
     # inference
     song_time_list = []
     words_len_list = []
-    num_samples = inferenceConfig["num_sample"]
+    num_samples = inference_config["num_sample"]
     for idx in range(num_samples):
-        print(f"==={idx}/{num_samples}===")
+        print(f"-----{idx}/{num_samples}-----")
         print(midi_folder, output_prefix + str(idx))
         song_time, word_len = model.inference(
             model_path=model_path,
-            token_lim=400,
+            token_lim=345,
             strategies=["temperature", "nucleus"],
             params={"t": 1.2, "p": 0.9},
             bpm=120,
@@ -74,19 +64,32 @@ def main():
         words_len_list.append(word_len)
         song_time_list.append(song_time)
 
-    print("ave token time:", sum(words_len_list) / sum(song_time_list))
-    print("ave song time:", np.mean(song_time_list))
+    print("avg token time:", sum(words_len_list) / sum(song_time_list))
+    print("avg song time:", np.mean(song_time_list))
 
-    runtime_result = {
-        "song_time": song_time_list,
-        "words_len_list": words_len_list,
-        "ave token time:": sum(words_len_list) / sum(song_time_list),
-        "ave song time": float(np.mean(song_time_list)),
-    }
 
-    path_runtime_stats = os.path.join(midi_folder, "runtime_stats.json")
-    with open(path_runtime_stats, "w") as f:
-        json.dump(runtime_result, f)
+def get_all_epochs(path: str, step=10):
+    for root, _, files in os.walk(path):
+        tar_files = filter(lambda s: s.startswith("ep") and s.endswith("tar"), files)
+        digits_regex = re.compile(r"\d+")
+        result = [int(digits_regex.findall(name)[0]) for name in tar_files]
+        result = [x for x in result if x % step == 0]
+        result.sort()
+        return result
+
+
+def main():
+
+    path_config = os.path.join(os.path.dirname(__file__), "config.yml")
+    config = yaml.full_load(open(path_config, "r"))
+    inference_config = config["INFERENCE"]
+
+    train_id = inference_config["train_id"]
+    path_checkpoint = os.path.join(path_root, "train", str(train_id))
+    epochs = get_all_epochs(path_checkpoint)
+
+    for epoch in epochs:
+        inference_uncond(epoch, inference_config)
 
 
 if __name__ == "__main__":

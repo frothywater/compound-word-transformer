@@ -26,28 +26,23 @@ MODEL:
 
 
 TRAIN: 
-    ROOT: 'data'
     gpuID: '1'
-    output_dir: "data/train"
+    train_id: 1
     batch_size: 22
     lr: 0.001
     optim_adam_beta1: 0.9
     optim_adam_beta2: 0.98
     weight_decay: 0
-    num_epochs: 100
+    num_epochs: 200
     save_freq: 5
     seed: 2222
     optim: 'adam'
     no_cuda: False
-    resume_training_model: None
+    resume_training_model: True
 
 
 INFERENCE:
     num_sample: 50
     gpuID: '2'
-    dictionary_path: 'data/dictionary.pkl'
-    experiment_dir: ''
-    generated_dir: 'data/generated'
-    checkpoint_type: best_train    # best_train, best_val, epoch_idx
-    model_epoch: 
+    train_id: 1
     no_cuda: False

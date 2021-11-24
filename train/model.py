@@ -228,18 +228,17 @@ class TransformerXL(object):
 
         return np.mean(val_loss)
 
-    def train(self, train_data, val_data, trainConfig, resume, stop_valid_loss):
-        checkpoint_dir = trainConfig["experiment_Dir"]
+    def train(self, train_data, val_data, trainConfig, resume_path, stop_valid_loss):
+        checkpoint_dir = trainConfig["experiment_dir"]
         batch_size = trainConfig["batch_size"]
-        data_ROOT = trainConfig["ROOT"]
         torch.manual_seed(trainConfig["seed"])
 
         # create saver
         saver_agent = saver.Saver(checkpoint_dir)
 
         # Prepare model
-        if resume != "None":
-            st_epoch, model = self.get_model(resume)
+        if resume_path != "None":
+            st_epoch, model = self.get_model(resume_path)
             print("Continue to train from {} epoch".format(st_epoch))
         else:
             st_epoch, model = self.get_model()
@@ -417,7 +416,7 @@ class TransformerXL(object):
             word = self.nucleus(probs=probs, p=params["p"])
             words[0].append(word)
 
-            print(len(words[0]), self.word2event[word])
+            # print(len(words[0]), self.word2event[word])
             # record n_bar
             if word == self.event2word["Bar_None"]:
                 generate_n_bar += 1
