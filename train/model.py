@@ -228,10 +228,27 @@ class TransformerXL(object):
 
         return np.mean(val_loss)
 
-    def train(self, train_data, val_data, trainConfig, resume_path, stop_valid_loss):
-        checkpoint_dir = trainConfig["experiment_dir"]
-        batch_size = trainConfig["batch_size"]
-        torch.manual_seed(trainConfig["seed"])
+    def validate_external(self, val_data, train_config, resume_path: str):
+        batch_size = train_config["batch_size"]
+        torch.manual_seed(train_config["seed"])
+
+        # Prepare model
+        epoch, model = self.get_model(resume_path)
+
+        print(">>> Start validating")
+        st_time = time.time()
+
+        val_loss = self.validate(val_data, batch_size, model)
+
+        epoch_info = f"Epoch: {epoch+1}, Valid Loss: {val_loss:.5f}, T: {time.time() - st_time:.3f}"
+        print(epoch_info)
+
+        return val_loss
+
+    def train(self, train_data, val_data, train_config, resume_path, stop_valid_loss):
+        checkpoint_dir = train_config["experiment_dir"]
+        batch_size = train_config["batch_size"]
+        torch.manual_seed(train_config["seed"])
 
         # create saver
         saver_agent = saver.Saver(checkpoint_dir)
@@ -245,12 +262,12 @@ class TransformerXL(object):
 
         optimizer = optim.AdamW(
             model.parameters(),
-            lr=trainConfig["lr"],
-            betas=(trainConfig["optim_adam_beta1"], trainConfig["optim_adam_beta2"]),
-            weight_decay=trainConfig["weight_decay"],
+            lr=train_config["lr"],
+            betas=(train_config["optim_adam_beta1"], train_config["optim_adam_beta2"]),
+            weight_decay=train_config["weight_decay"],
         )
         epoch_train_loss = []
-        save_freq = trainConfig["save_freq"]
+        save_freq = train_config["save_freq"]
 
         n_parameters = network_paras(model)
         print("n_parameters: {:,}".format(n_parameters))
@@ -274,7 +291,7 @@ class TransformerXL(object):
                 min_val_loss_epoch = 0
 
         print(">>> Start training")
-        for epoch in range(st_epoch, trainConfig["num_epochs"]):
+        for epoch in range(st_epoch, train_config["num_epochs"]):
             saver_agent.global_step_increment()
 
             train_loss = []
@@ -316,7 +333,7 @@ class TransformerXL(object):
 
                     sys.stdout.write(
                         "epoch:{:3d}/{:3d}, batch: {:4d}/{:4d}, group: {:2d}/{:2d} | Loss: {:6f}\r".format(
-                            epoch, trainConfig["num_epochs"], bidx, num_batches, gidx, n_group, loss.item()
+                            epoch, train_config["num_epochs"], bidx, num_batches, gidx, n_group, loss.item()
                         )
                     )
                     sys.stdout.flush()
@@ -350,7 +367,7 @@ class TransformerXL(object):
                 {
                     "epoch": epoch + 1,
                     "model_setting": self.modelConfig,
-                    "train_setting": trainConfig,
+                    "train_setting": train_config,
                     "state_dict": model.state_dict(),
                     "best_loss": curr_train_loss,
                     "optimizer": optimizer.state_dict(),
@@ -369,8 +386,7 @@ class TransformerXL(object):
                     print("Experiment [{}] finished because no valid_loss drop since last 5 epochs.".format(checkpoint_dir))
                     break
 
-    def inference(self, model_path, token_lim, strategies, params, bpm, output_path):
-        _, model = self.get_model(model_path)
+    def inference(self, model, token_lim, strategies, params, output_path):
         model.eval()
 
         # initial start
@@ -386,7 +402,6 @@ class TransformerXL(object):
         initial_flag = True
         generate_n_bar = 0
         batch_size = 1
-        n_tokens = len(words[0])
         while len(words[0]) < token_lim:
             # prepare input
             if initial_flag:
@@ -408,12 +423,13 @@ class TransformerXL(object):
             logits = _logits.cpu().squeeze().detach().numpy()
 
             # temperature or not
-            if "temperature" in strategies:
-                probs = self.temperature(logits=logits, temperature=params["t"])
-            else:
-                probs = self.temperature(logits=logits, temperature=1.0)
+            temperature = params["t"] if "temperature" in strategies else 1.0
+            probs = self.temperature(logits, temperature)
             # sampling
-            word = self.nucleus(probs=probs, p=params["p"])
+            if "top-k" in strategies:
+                word = self.topk(probs=probs, k=params["k"])
+            elif "nucleus" in strategies:
+                word = self.nucleus(probs=probs, p=params["p"])
             words[0].append(word)
 
             # print(len(words[0]), self.word2event[word])
@@ -431,6 +447,7 @@ class TransformerXL(object):
     # search strategy: temperature (re-shape)
     ########################################
     def temperature(self, logits, temperature):
+        logits -= logits.max()
         probs = np.exp(logits / temperature) / np.sum(np.exp(logits / temperature))
         return probs
 

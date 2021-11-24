@@ -42,7 +42,7 @@ TRAIN:
 
 
 INFERENCE:
-    num_sample: 50
+    num_sample: 100
     gpuID: '2'
     train_id: 1
     no_cuda: False

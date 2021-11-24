@@ -1,13 +1,13 @@
 import json
 import os
 import pickle
-import re
 
 import numpy as np
 import torch
 import yaml
 
 from model import TransformerXL
+from utils import get_all_epochs, get_configs
 
 path_root = "data"
 
@@ -15,16 +15,12 @@ path_root = "data"
 def inference_uncond(epoch: int, inference_config):
     os.environ["CUDA_VISIBLE_DEVICES"] = inference_config["gpuID"]
 
-    print("=" * 2, "Inference configs", "=" * 5)
-    print(json.dumps(inference_config, indent=1, sort_keys=True))
-
     # checkpoint information
     train_id = inference_config["train_id"]
     path_checkpoint = os.path.join(path_root, "train", str(train_id))
-    midi_folder = os.path.join(path_root, "generated")
+    midi_folder = os.path.join(path_root, "generated", str(epoch))
 
     model_path = os.path.join(path_checkpoint, f"ep_{epoch}.pth.tar")
-    output_prefix = f"ep_{epoch}_"
 
     pretrain_config = yaml.full_load(open(os.path.join(path_checkpoint, "config.yml"), "r"))
     model_config = pretrain_config["MODEL"]
@@ -42,6 +38,7 @@ def inference_uncond(epoch: int, inference_config):
 
     # declare model
     model = TransformerXL(model_config, device, event2word=event2word, word2event=word2event, is_training=False)
+    _, inner_model = model.get_model(model_path)
 
     # inference
     song_time_list = []
@@ -49,14 +46,13 @@ def inference_uncond(epoch: int, inference_config):
     num_samples = inference_config["num_sample"]
     for idx in range(num_samples):
         print(f"-----{idx}/{num_samples}-----")
-        print(midi_folder, output_prefix + str(idx))
+        print(midi_folder, str(idx))
         song_time, word_len = model.inference(
-            model_path=model_path,
+            model=inner_model,
             token_lim=345,
-            strategies=["temperature", "nucleus"],
-            params={"t": 1.2, "p": 0.9},
-            bpm=120,
-            output_path="{}/{}.mid".format(midi_folder, output_prefix + str(idx)),
+            strategies=["temperature", "top-k"],
+            params={"t": 1.5, "k": 10},
+            output_path="{}/{}.mid".format(midi_folder, str(idx)),
         )
 
         print("song time:", song_time)
@@ -68,26 +64,10 @@ def inference_uncond(epoch: int, inference_config):
     print("avg song time:", np.mean(song_time_list))
 
 
-def get_all_epochs(path: str, step=10):
-    for root, _, files in os.walk(path):
-        tar_files = filter(lambda s: s.startswith("ep") and s.endswith("tar"), files)
-        digits_regex = re.compile(r"\d+")
-        result = [int(digits_regex.findall(name)[0]) for name in tar_files]
-        result = [x for x in result if x % step == 0]
-        result.sort()
-        return result
-
-
 def main():
+    _, train_config, inference_config = get_configs(path_root)
 
-    path_config = os.path.join(os.path.dirname(__file__), "config.yml")
-    config = yaml.full_load(open(path_config, "r"))
-    inference_config = config["INFERENCE"]
-
-    train_id = inference_config["train_id"]
-    path_checkpoint = os.path.join(path_root, "train", str(train_id))
-    epochs = get_all_epochs(path_checkpoint)
-
+    epochs = get_all_epochs(train_config["experiment_dir"])
     for epoch in epochs:
         inference_uncond(epoch, inference_config)
 
