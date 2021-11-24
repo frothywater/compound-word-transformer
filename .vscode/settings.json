@@ -8,4 +8,7 @@
   "python.formatting.blackArgs": ["--line-length", "125"],
   "python.linting.flake8Args": ["--max-line-width", "125"],
   "editor.formatOnSaveMode": "file",
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": true
+  }
 }
