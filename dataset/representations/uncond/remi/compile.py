@@ -10,6 +10,8 @@ GROUP_SIZE = 5  # Group size should be smaller since the skeleton files are shor
 MAX_LEN = WINDOW_SIZE * GROUP_SIZE
 COMPILE_TARGET = 'XL' # 'linear', 'XL'
 VALID_RATIO = 0.05
+VALID_COUNT = 100
+VALID_SAMPLING_MODE = "count"
 print('[config] MAX_LEN:', MAX_LEN)
 
 
@@ -130,9 +132,21 @@ def compile(path_root: str):
     print(' > mask_final:', mask_final.shape)
     
     # split train/test
-    valid_count = math.trunc(VALID_RATIO * num_samples)
+    if VALID_SAMPLING_MODE == "count":
+        valid_count = VALID_COUNT
+    elif VALID_SAMPLING_MODE == "ratio":
+        valid_count = math.trunc(VALID_RATIO * num_samples)
+    else:
+        raise ValueError(f"Unknown validation data sampling mode: {VALID_SAMPLING_MODE}")
+    
     test_idx = np.random.choice(num_samples, valid_count, replace=False)
     train_idx = np.setdiff1d(np.arange(num_samples), test_idx)
+
+    # build dictionary for validation data
+    valid_dict = {name_list[index.item()]: index.item() for index in test_idx}
+    path_valid_dict = os.path.join(path_root, 'valid_dict.json')
+    with open(path_valid_dict, "w", encoding="utf-8") as file_json:
+        json.dump(valid_dict, file_json, indent=4, sort_keys=True, ensure_ascii=False)
     
     # save train
     path_train = os.path.join(path_root, 'train_data_{}.npz'.format(COMPILE_TARGET))
