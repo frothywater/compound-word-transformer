@@ -1,34 +1,24 @@
+import json
+import os
 import sys
-from typing import Tuple
+import time
+
+import miditoolkit
+import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import math
-import numpy as np
-import pandas as pd
-import miditoolkit
-import shutil
-import copy
-import os
-import time
-import json
-from sklearn.model_selection import train_test_split
-from modules import MemTransformerLM
-from glob import glob
-
-import miditoolkit
-from miditoolkit.midi.containers import Marker, Instrument, TempoChange, Note
-import collections
-import pickle 
-import numpy as np
+from miditoolkit.midi.containers import Instrument, Marker, Note, TempoChange
 
 import saver
+from modules import MemTransformerLM
 
 # ================================ #
 BEAT_RESOL = 480
 BAR_RESOL = BEAT_RESOL * 4
 TICK_RESOL = BEAT_RESOL // 4
-INSTR_NAME_MAP = {'piano': 0, 'melody': 1}
+INSTR_NAME_MAP = {"piano": 0, "melody": 1}
 
 
 def write_midi(words, path_midi, word2event):
@@ -41,40 +31,36 @@ def write_midi(words, path_midi, word2event):
 
     midi_obj = miditoolkit.midi.parser.MidiFile()
     cur_pos = 0
-    
-    for i in range(len(events)-3):
+
+    for i in range(len(events) - 3):
         cur_event = events[i]
         # print(cur_event)
-        name = cur_event.split('_')[0]
-        attr = cur_event.split('_')
-        if name == 'Bar':
+        name = cur_event.split("_")[0]
+        attr = cur_event.split("_")
+        if name == "Bar":
             bar_cnt += 1
-        elif name == 'Beat':
+        elif name == "Beat":
             cur_beat = int(attr[1])
             cur_pos = bar_cnt * BAR_RESOL + cur_beat * TICK_RESOL
-        elif name == 'Chord':
-            chord_text = attr[1] + '_' + attr[2]
+        elif name == "Chord":
+            chord_text = attr[1] + "_" + attr[2]
             midi_obj.markers.append(Marker(text=chord_text, time=cur_pos))
-        elif name == 'Tempo':
-            midi_obj.tempo_changes.append(
-                TempoChange(tempo=int(attr[1]), time=cur_pos))
+        elif name == "Tempo":
+            midi_obj.tempo_changes.append(TempoChange(tempo=int(attr[1]), time=cur_pos))
         else:
-            if 'Note_Pitch' in events[i] and \
-            'Note_Velocity' in events[i+1] and \
-            'Note_Duration' in events[i+2]:
+            if "Note_Pitch" in events[i] and "Note_Velocity" in events[i + 1] and "Note_Duration" in events[i + 2]:
 
-                pitch = int(events[i].split('_')[-1])
-                duration = int(events[i+2].split('_')[-1])
+                pitch = int(events[i].split("_")[-1])
+                duration = int(events[i + 2].split("_")[-1])
 
                 if int(duration) == 0:
                     duration = 60
 
-                end = cur_pos + duration 
-                velocity = int(events[i+1].split('_')[-1])
-                notes_all.append(
-                    Note(pitch=pitch, start=cur_pos, end=end, velocity=velocity))
-                
-    piano_track = Instrument(0, is_drum=False, name='piano')
+                end = cur_pos + duration
+                velocity = int(events[i + 1].split("_")[-1])
+                notes_all.append(Note(pitch=pitch, start=cur_pos, end=end, velocity=velocity))
+
+    piano_track = Instrument(0, is_drum=False, name="piano")
     piano_track.notes = notes_all
     midi_obj.instruments = [piano_track]
     midi_obj.dump(path_midi)
@@ -87,6 +73,7 @@ def network_paras(model):
     params = sum([np.prod(p.size()) for p in model_parameters])
     return params
 
+
 class TransformerXL(object):
     def __init__(self, modelConfig, device, event2word, word2event, is_training=True):
 
@@ -94,194 +81,184 @@ class TransformerXL(object):
         self.word2event = word2event
         self.modelConfig = modelConfig
 
-        # model settings    
-        self.n_layer= modelConfig['n_layer']
-        self.d_model = modelConfig['d_model']
-        self.seq_len= modelConfig['seq_len']
-        self.mem_len =  modelConfig['mem_len']
+        # model settings
+        self.n_layer = modelConfig["n_layer"]
+        self.d_model = modelConfig["d_model"]
+        self.seq_len = modelConfig["seq_len"]
+        self.mem_len = modelConfig["mem_len"]
 
-        self.tgt_len = modelConfig['tgt_len']
-        self.ext_len = modelConfig['ext_len']
-        self.eval_tgt_len = modelConfig['eval_tgt_len']
+        self.tgt_len = modelConfig["tgt_len"]
+        self.ext_len = modelConfig["ext_len"]
+        self.eval_tgt_len = modelConfig["eval_tgt_len"]
 
-        self.init = modelConfig['init']
-        self.init_range = modelConfig['init_range']
-        self.init_std = modelConfig['init_std']
-        self.proj_init_std = modelConfig['proj_init_std']
+        self.init = modelConfig["init"]
+        self.init_range = modelConfig["init_range"]
+        self.init_std = modelConfig["init_std"]
+        self.proj_init_std = modelConfig["proj_init_std"]
 
-        #mode
+        # mode
         self.is_training = is_training
-        self.device = device  
-        
+        self.device = device
 
     def init_weight(self, weight):
-        if self.init == 'uniform':
+        if self.init == "uniform":
             nn.init.uniform_(weight, -self.init_range, self.init_range)
-        elif self.init == 'normal':
+        elif self.init == "normal":
             nn.init.normal_(weight, 0.0, self.init_std)
 
     def init_bias(self, bias):
         nn.init.constant_(bias, 0.0)
-            
-    def weights_init(self,m):
-        classname = m.__class__.__name__
-        if classname.find('Linear') != -1:
-            if hasattr(m, 'weight') and m.weight is not None:
-                self.init_weight(m.weight)
-            if hasattr(m, 'bias') and m.bias is not None:
-                self.init_bias(m.bias)
-        elif classname.find('Embedding') != -1:
-            if hasattr(m, 'weight'):
-                self.init_weight(m.weight)
-        elif classname.find('LayerNorm') != -1:
-            if hasattr(m, 'weight'):
-                nn.init.normal_(m.weight, 1.0, self.init_std)
-            if hasattr(m, 'bias') and m.bias is not None:
-                self.init_bias(m.bias)
-        elif classname.find('TransformerLM') != -1:
-            if hasattr(m, 'r_emb'):
-                self.init_weight(m.r_emb)
-            if hasattr(m, 'r_w_bias'):
-                self.init_weight(m.r_w_bias)
-            if hasattr(m, 'r_r_bias'):
-                self.init_weight(m.r_r_bias)
-            if hasattr(m, 'r_bias'):
-                self.init_bias(m.r_bias)
 
+    def weights_init(self, m):
+        classname = m.__class__.__name__
+        if classname.find("Linear") != -1:
+            if hasattr(m, "weight") and m.weight is not None:
+                self.init_weight(m.weight)
+            if hasattr(m, "bias") and m.bias is not None:
+                self.init_bias(m.bias)
+        elif classname.find("Embedding") != -1:
+            if hasattr(m, "weight"):
+                self.init_weight(m.weight)
+        elif classname.find("LayerNorm") != -1:
+            if hasattr(m, "weight"):
+                nn.init.normal_(m.weight, 1.0, self.init_std)
+            if hasattr(m, "bias") and m.bias is not None:
+                self.init_bias(m.bias)
+        elif classname.find("TransformerLM") != -1:
+            if hasattr(m, "r_emb"):
+                self.init_weight(m.r_emb)
+            if hasattr(m, "r_w_bias"):
+                self.init_weight(m.r_w_bias)
+            if hasattr(m, "r_r_bias"):
+                self.init_weight(m.r_r_bias)
+            if hasattr(m, "r_bias"):
+                self.init_bias(m.r_bias)
 
     def get_model(self, pretrain_model=None):
         model = MemTransformerLM(self.modelConfig, is_training=self.is_training)
 
         st_eopch = 0
         if pretrain_model:
-            checkpoint = torch.load(pretrain_model, map_location='cuda:0')
-            print('Pretrained model config:')
-            print('epoch: ', checkpoint['epoch'])
-            print('best_loss: ', checkpoint['best_loss'])
-            print(json.dumps(checkpoint['model_setting'], indent=1, sort_keys=True))
-            print(json.dumps(checkpoint['train_setting'], indent=1, sort_keys=True))
+            checkpoint = torch.load(pretrain_model, map_location="cuda:0")
+            print("Pretrained model config:")
+            print("epoch: ", checkpoint["epoch"])
+            print("best_loss: ", checkpoint["best_loss"])
+            print(json.dumps(checkpoint["model_setting"], indent=1, sort_keys=True))
+            print(json.dumps(checkpoint["train_setting"], indent=1, sort_keys=True))
 
             try:
-                model.load_state_dict(checkpoint['state_dict'])
-                print('{} loaded.'.format(pretrain_model))  
+                model.load_state_dict(checkpoint["state_dict"])
+                print("{} loaded.".format(pretrain_model))
             except:
-                print('Loaded weights have different shapes with the model. Please check your model setting.')
+                print("Loaded weights have different shapes with the model. Please check your model setting.")
                 exit()
-            st_eopch = checkpoint['epoch'] + 1
+            st_eopch = checkpoint["epoch"] + 1
 
         else:
             model.apply(self.weights_init)
-            model.word_emb.apply(self.weights_init) 
-        return st_eopch ,model.to(self.device)
-
+            model.word_emb.apply(self.weights_init)
+        return st_eopch, model.to(self.device)
 
     def save_checkpoint(self, state, root, save_freq=10, best_val=False):
         if best_val:
-            torch.save(state, os.path.join(root,'model_best_val.pth.tar'))
-        elif state['epoch'] % save_freq == 0:
-            torch.save(state, os.path.join(root,'ep_{}.pth.tar'.format(state['epoch'])))
+            torch.save(state, os.path.join(root, "model_best_val.pth.tar"))
+        elif state["epoch"] % save_freq == 0:
+            torch.save(state, os.path.join(root, "ep_{}.pth.tar".format(state["epoch"])))
 
-    def train_loss_record(self, epoch, train_loss,checkpoint_dir, val_loss=None):
-
+    def train_loss_record(self, epoch, train_loss, checkpoint_dir, val_loss=None):
         if val_loss:
-            df = pd.DataFrame({'epoch': [epoch+1],
-                    'train_loss': ['%.3f'%train_loss],
-                    'val_loss': ['%.3f'%val_loss]})
-            
+            df = pd.DataFrame({"epoch": [epoch + 1], "train_loss": ["%.3f" % train_loss], "val_loss": ["%.3f" % val_loss]})
         else:
-            df = pd.DataFrame({'epoch': [epoch+1],
-                    'train_loss': ['%.3f'%train_loss]})
+            df = pd.DataFrame({"epoch": [epoch + 1], "train_loss": ["%.3f" % train_loss]})
 
-        csv_file = os.path.join(checkpoint_dir, 'loss.csv')
+        csv_file = os.path.join(checkpoint_dir, "loss.csv")
 
         if not os.path.exists(csv_file):
             df.to_csv(csv_file, index=False)
         else:
-            df.to_csv(os.path.join(checkpoint_dir, 'loss.csv'), mode='a', header=False,  index=False)
+            df.to_csv(os.path.join(checkpoint_dir, "loss.csv"), mode="a", header=False, index=False)
 
     def validate(self, val_data, batch_size, model: MemTransformerLM):
-        val_x = val_data['x']
-        val_y = val_data['y']
-        mask = val_data['mask']
-        num_groups = val_data['num_groups']
+        val_x = val_data["x"]
+        val_y = val_data["y"]
+        mask = val_data["mask"]
+        num_groups = val_data["num_groups"]
         num_batches = len(val_x) // batch_size
 
         model.eval()
         val_loss = []
         with torch.no_grad():
             for bidx in range(num_batches):
-                    # index
-                    bidx_st = batch_size * bidx
-                    bidx_ed = batch_size * (bidx + 1)
+                # index
+                bidx_st = batch_size * bidx
+                bidx_ed = batch_size * (bidx + 1)
 
-                    # get batch
-                    batch_x = val_x[bidx_st:bidx_ed]
-                    batch_y = val_y[bidx_st:bidx_ed]
-                    batch_mask = mask[bidx_st:bidx_ed]
-                    n_group = np.max(num_groups[bidx_st:bidx_ed])
+                # get batch
+                batch_x = val_x[bidx_st:bidx_ed]
+                batch_y = val_y[bidx_st:bidx_ed]
+                batch_mask = mask[bidx_st:bidx_ed]
+                n_group = np.max(num_groups[bidx_st:bidx_ed])
 
-                    # proc groups
-                    mems: tuple = tuple()
-                    for gidx in range(n_group):
-                        group_x = batch_x[:, gidx, :]
-                        group_y = batch_y[:, gidx, :]
-                        group_mask = batch_mask[:, gidx, :]
-                        
-                        group_x = torch.from_numpy(group_x).permute(1, 0).contiguous().to(self.device).long()  # (seq_len, bsz)
-                        group_y = torch.from_numpy(group_y).permute(1, 0).contiguous().to(self.device).long()
-                        group_mask = torch.from_numpy(group_mask).to(self.device).float()
-                        
-                        ret = model(group_x, group_y, group_mask, *mems)
-                        loss, mems = ret[0], ret[1:]
-                        val_loss.append(loss.item())
+                # proc groups
+                mems: tuple = tuple()
+                for gidx in range(n_group):
+                    group_x = batch_x[:, gidx, :]
+                    group_y = batch_y[:, gidx, :]
+                    group_mask = batch_mask[:, gidx, :]
 
-                        sys.stdout.write('Validation, batch: {:4d}/{:4d}, group: {:2d}/{:2d} | Loss: {:6f}\r'.format(
-                            bidx,
-                            num_batches,
-                            gidx,
-                            n_group, 
-                            val_loss[-1]
-                        ))
-                        sys.stdout.flush()
-        
+                    group_x = torch.from_numpy(group_x).permute(1, 0).contiguous().to(self.device).long()  # (seq_len, bsz)
+                    group_y = torch.from_numpy(group_y).permute(1, 0).contiguous().to(self.device).long()
+                    group_mask = torch.from_numpy(group_mask).to(self.device).float()
+
+                    ret = model(group_x, group_y, group_mask, *mems)
+                    loss, mems = ret[0], ret[1:]
+                    val_loss.append(loss.item())
+
+                    sys.stdout.write(
+                        "Validation, batch: {:4d}/{:4d}, group: {:2d}/{:2d} | Loss: {:6f}\r".format(
+                            bidx, num_batches, gidx, n_group, val_loss[-1]
+                        )
+                    )
+                    sys.stdout.flush()
+
         return np.mean(val_loss)
 
-
     def train(self, train_data, val_data, trainConfig, resume, stop_valid_loss):
-        checkpoint_dir = trainConfig['experiment_Dir']
-        batch_size = trainConfig['batch_size']
-        data_ROOT = trainConfig['ROOT']
+        checkpoint_dir = trainConfig["experiment_Dir"]
+        batch_size = trainConfig["batch_size"]
+        data_ROOT = trainConfig["ROOT"]
         torch.manual_seed(trainConfig["seed"])
 
         # create saver
         saver_agent = saver.Saver(checkpoint_dir)
 
-        #Prepare model
-        if resume != 'None':
+        # Prepare model
+        if resume != "None":
             st_epoch, model = self.get_model(resume)
-            print('Continue to train from {} epoch'.format(st_epoch))
+            print("Continue to train from {} epoch".format(st_epoch))
         else:
             st_epoch, model = self.get_model()
 
-        optimizer = optim.AdamW(model.parameters(),
-            lr=trainConfig['lr'],
-            betas=(trainConfig['optim_adam_beta1'], trainConfig['optim_adam_beta2']),
-            weight_decay=trainConfig['weight_decay'])
+        optimizer = optim.AdamW(
+            model.parameters(),
+            lr=trainConfig["lr"],
+            betas=(trainConfig["optim_adam_beta1"], trainConfig["optim_adam_beta2"]),
+            weight_decay=trainConfig["weight_decay"],
+        )
         epoch_train_loss = []
-        save_freq = trainConfig['save_freq']
-        
+        save_freq = trainConfig["save_freq"]
+
         n_parameters = network_paras(model)
-        print('n_parameters: {:,}'.format(n_parameters))
-        saver_agent.add_summary_msg(
-            ' > params amount: {:,d}'.format(n_parameters))
+        print("n_parameters: {:,}".format(n_parameters))
+        saver_agent.add_summary_msg(" > params amount: {:,d}".format(n_parameters))
 
         # unpack
-        train_x = train_data['x'] 
-        train_y = train_data['y'] 
-        mask = train_data['mask'] 
-        num_groups = train_data['num_groups'] 
+        train_x = train_data["x"]
+        train_y = train_data["y"]
+        mask = train_data["mask"]
+        num_groups = train_data["num_groups"]
 
-        num_batches = len(train_x ) // batch_size
+        num_batches = len(train_x) // batch_size
 
         if val_data:
             all_val_loss = []
@@ -289,8 +266,8 @@ class TransformerXL(object):
                 min_val_loss = float("inf")
                 min_val_loss_epoch = 0
 
-        print('>>> Start training')
-        for epoch in range(st_epoch, trainConfig['num_epochs']):
+        print(">>> Start training")
+        for epoch in range(st_epoch, trainConfig["num_epochs"]):
             saver_agent.global_step_increment()
 
             train_loss = []
@@ -298,7 +275,6 @@ class TransformerXL(object):
             model.train()
 
             for bidx in range(num_batches):
-                
                 model.zero_grad()
 
                 # index
@@ -309,7 +285,7 @@ class TransformerXL(object):
                 batch_x = train_x[bidx_st:bidx_ed]
                 batch_y = train_y[bidx_st:bidx_ed]
                 batch_mask = mask[bidx_st:bidx_ed]
-                n_group  = np.max(num_groups[bidx_st:bidx_ed])
+                n_group = np.max(num_groups[bidx_st:bidx_ed])
 
                 # proc groups
                 mems = tuple()
@@ -317,25 +293,21 @@ class TransformerXL(object):
                     group_x = batch_x[:, gidx, :]
                     group_y = batch_y[:, gidx, :]
                     group_mask = batch_mask[:, gidx, :]
-                    
+
                     group_x = torch.from_numpy(group_x).permute(1, 0).contiguous().to(self.device).long()  # (seq_len, bsz)
                     group_y = torch.from_numpy(group_y).permute(1, 0).contiguous().to(self.device).long()
                     group_mask = torch.from_numpy(group_mask).to(self.device).float()
-                    
+
                     ret = model(group_x, group_y, group_mask, *mems)
-                    loss, mems = ret[0], ret[1:]              
-                    train_loss.append(loss.item()) 
+                    loss, mems = ret[0], ret[1:]
+                    train_loss.append(loss.item())
                     loss.backward()
 
-                    sys.stdout.write('epoch:{:3d}/{:3d}, batch: {:4d}/{:4d}, group: {:2d}/{:2d} | Loss: {:6f}\r'.format(
-                        epoch,
-                        trainConfig['num_epochs'],
-                        bidx,
-                        num_batches,
-                        gidx,
-                        n_group, 
-                        loss.item()
-                    ))
+                    sys.stdout.write(
+                        "epoch:{:3d}/{:3d}, batch: {:4d}/{:4d}, group: {:2d}/{:2d} | Loss: {:6f}\r".format(
+                            epoch, trainConfig["num_epochs"], bidx, num_batches, gidx, n_group, loss.item()
+                        )
+                    )
                     sys.stdout.flush()
 
                 optimizer.step()
@@ -343,7 +315,7 @@ class TransformerXL(object):
             if val_data:
                 val_loss = self.validate(val_data, batch_size, model)
                 all_val_loss.append(val_loss)
-                saver_agent.add_summary('valid loss', val_loss)
+                saver_agent.add_summary("valid loss", val_loss)
                 if stop_valid_loss:
                     current_min_val_loss = False
                     if val_loss < min_val_loss:
@@ -353,7 +325,7 @@ class TransformerXL(object):
             best_val = val_data is not None and current_min_val_loss
 
             curr_train_loss = sum(train_loss) / len(train_loss)
-            saver_agent.add_summary('epoch loss', curr_train_loss)
+            saver_agent.add_summary("epoch loss", curr_train_loss)
 
             epoch_train_loss.append(curr_train_loss)
             epoch_info = f"Epoch: {epoch+1}, Train Loss: {curr_train_loss:.5f}"
@@ -363,35 +335,39 @@ class TransformerXL(object):
             print(epoch_info)
 
             self.train_loss_record(epoch, curr_train_loss, checkpoint_dir)
-            self.save_checkpoint({
-                    'epoch': epoch + 1,
-                    'model_setting': self.modelConfig,
-                    'train_setting': trainConfig,
-                    'state_dict': model.state_dict(),
-                    'best_loss': curr_train_loss,
-                    'optimizer' : optimizer.state_dict(),
-                },  checkpoint_dir, save_freq, best_val)
+            self.save_checkpoint(
+                {
+                    "epoch": epoch + 1,
+                    "model_setting": self.modelConfig,
+                    "train_setting": trainConfig,
+                    "state_dict": model.state_dict(),
+                    "best_loss": curr_train_loss,
+                    "optimizer": optimizer.state_dict(),
+                },
+                checkpoint_dir,
+                save_freq,
+                best_val,
+            )
 
             if curr_train_loss < 0.01:
-                print('Experiment [{}] finished at loss < 0.01.'.format(checkpoint_dir))
+                print("Experiment [{}] finished at loss < 0.01.".format(checkpoint_dir))
                 break
 
             if val_data is not None and stop_valid_loss:
                 if epoch - min_val_loss_epoch >= 5:
-                    print('Experiment [{}] finished because no valid_loss drop since last 5 epochs.'.format(checkpoint_dir))
+                    print("Experiment [{}] finished because no valid_loss drop since last 5 epochs.".format(checkpoint_dir))
                     break
-
 
     def inference(self, model_path, token_lim, strategies, params, bpm, output_path):
         _, model = self.get_model(model_path)
         model.eval()
-        
+
         # initial start
         words = [[]]
 
         # add beat
-        words[-1].append(self.event2word['Bar_None'])
-        
+        words[-1].append(self.event2word["Bar_None"])
+
         # initialize mem
         mems = tuple()
         song_init_time = time.time()
@@ -404,44 +380,40 @@ class TransformerXL(object):
             # prepare input
             if initial_flag:
                 temp_x = np.zeros((len(words[0]), batch_size))
-
                 for b in range(batch_size):
                     for z, t in enumerate(words[b]):
                         temp_x[z][b] = t
-                
+
                 initial_flag = False
             else:
                 temp_x = np.zeros((1, batch_size))
-                
                 for b in range(batch_size):
-                    temp_x[0][b] = words[b][-1] ####?####
+                    temp_x[0][b] = words[b][-1]  ####?####
 
-            temp_x = torch.from_numpy(temp_x).long().to(self.device)     
+            temp_x = torch.from_numpy(temp_x).long().to(self.device)
             st_time = time.time()
-            
+
             _logits, mems = model.generate(temp_x, *mems)
             logits = _logits.cpu().squeeze().detach().numpy()
 
             # temperature or not
-            if 'temperature' in strategies:
-                probs = self.temperature(logits=logits, temperature=params['t'])
-                
+            if "temperature" in strategies:
+                probs = self.temperature(logits=logits, temperature=params["t"])
             else:
-                probs = self.temperature(logits=logits, temperature=1.)
+                probs = self.temperature(logits=logits, temperature=1.0)
             # sampling
-            word = self.nucleus(probs=probs, p=params['p'])    
+            word = self.nucleus(probs=probs, p=params["p"])
             words[0].append(word)
-            
+
             print(len(words[0]), self.word2event[word])
             # record n_bar
-            if word == self.event2word['Bar_None']:
+            if word == self.event2word["Bar_None"]:
                 generate_n_bar += 1
-            
 
         write_midi(words[0], output_path, self.word2event)
 
         song_total_time = time.time() - song_init_time
-        print('Total words generated: ', len(words[0]))
+        print("Total words generated: ", len(words[0]))
         return song_total_time, len(words[0])
 
     ########################################
@@ -475,7 +447,7 @@ class TransformerXL(object):
             last_index = np.where(after_threshold)[0][0] + 1
             candi_index = sorted_index[:last_index]
         else:
-            candi_index = sorted_index[:3] # just assign a value
+            candi_index = sorted_index[:3]  # just assign a value
         candi_probs = [probs[i] for i in candi_index]
         candi_probs /= sum(candi_probs)
         word = np.random.choice(candi_index, size=1, p=candi_probs)[0]
