@@ -1,7 +1,8 @@
-from midi2corpus import midi2corpus
-from representations.uncond.remi.corpus2events import corpus2events
-from representations.uncond.remi.events2words import events2words
-from representations.uncond.remi.compile import compile
+import midi2corpus
+import corpus2events
+import events2words
+import compile
+
 
 def main():
     path_root = "./data"
@@ -14,6 +15,7 @@ def main():
     print("[MAIN] words -> npz >>>>>")
     compile(path_root)
     print("[MAIN] finished! <<<<<")
+
 
 if __name__ == "__main__":
     main()

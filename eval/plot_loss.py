@@ -1,10 +1,11 @@
-import pandas as pd
-import numpy as np
-from matplotlib import pyplot as plt
 import os
 import sys
 
+import pandas as pd
+from matplotlib import pyplot as plt
+
 path_exp = "data/train"
+
 
 def main():
     start_index = None
@@ -14,9 +15,9 @@ def main():
         for dir in dirs:
             path_dir = os.path.join(root, dir)
             plot(path_dir, start_index=start_index)
-        
 
-def plot(path_dir: str, start_index = 0):
+
+def plot(path_dir: str, start_index=0):
     path_csv = os.path.join(path_dir, "loss.csv")
     path_png = os.path.join(path_dir, "loss_figure.png")
 
@@ -32,6 +33,7 @@ def plot(path_dir: str, start_index = 0):
     plt.legend()
     plt.savefig(path_png)
     plt.close()
+
 
 if __name__ == "__main__":
     main()

@@ -1,45 +1,41 @@
-import os
-import glob
-import pickle
-import numpy as np
-import miditoolkit
 import collections
+import os
+import pickle
 
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+import miditoolkit
+import numpy as np
 
-# ================================================== #  
+# ================================================== #
 #  Configuration                                     #
-# ================================================== #  
+# ================================================== #
 BEAT_RESOL = 480
 BAR_RESOL = BEAT_RESOL * 4
 TICK_RESOL = BEAT_RESOL // 4
-INSTR_NAME_MAP = {}
+INSTR_NAME_MAP: dict = {}
 MIN_BPM = 40
 MIN_VELOCITY = 40
-NOTE_SORTING = 1 #  0: ascending / 1: descending
+NOTE_SORTING = 1  #  0: ascending / 1: descending
 
-DEFAULT_VELOCITY_BINS = np.linspace(0,  128, 64+1, dtype=np.int)
-DEFAULT_BPM_BINS      = np.linspace(32, 224, 64+1, dtype=np.int)
-DEFAULT_SHIFT_BINS    = np.linspace(-60, 60, 60+1, dtype=np.int)
-DEFAULT_DURATION_BINS = np.arange(
-        BEAT_RESOL/8, BEAT_RESOL*8+1, BEAT_RESOL/8)
+DEFAULT_VELOCITY_BINS = np.linspace(0, 128, 64 + 1, dtype=np.int64)
+DEFAULT_BPM_BINS = np.linspace(32, 224, 64 + 1, dtype=np.int64)
+DEFAULT_SHIFT_BINS = np.linspace(-60, 60, 60 + 1, dtype=np.int64)
+DEFAULT_DURATION_BINS = np.arange(BEAT_RESOL / 8, BEAT_RESOL * 8 + 1, BEAT_RESOL / 8)
 
-# ================================================== #  
+# ================================================== #
 
 
 def traverse_dir(
-        root_dir,
-        extension=('mid', 'MID', 'midi'),
-        amount=None,
-        str_=None,
-        is_pure=False,
-        verbose=False,
-        is_sort=False,
-        is_ext=True):
+    root_dir,
+    extension=("mid", "MID", "midi"),
+    amount=None,
+    str_=None,
+    is_pure=False,
+    verbose=False,
+    is_sort=False,
+    is_ext=True,
+):
     if verbose:
-        print('[*] Scanning...')
+        print("[*] Scanning...")
     file_list = []
     cnt = 0
     for root, _, files in os.walk(root_dir):
@@ -51,17 +47,17 @@ def traverse_dir(
                     if str_ not in file:
                         continue
                 mix_path = os.path.join(root, file)
-                pure_path = mix_path[len(root_dir)+1:] if is_pure else mix_path
+                pure_path = mix_path[len(root_dir) + 1 :] if is_pure else mix_path
                 if not is_ext:
-                    ext = pure_path.split('.')[-1]
-                    pure_path = pure_path[:-(len(ext)+1)]
+                    ext = pure_path.split(".")[-1]
+                    pure_path = pure_path[: -(len(ext) + 1)]
                 if verbose:
                     print(pure_path)
                 file_list.append(pure_path)
                 cnt += 1
     if verbose:
-        print('Total: %d files' % len(file_list))
-        print('Done!!!')
+        print("Total: %d files" % len(file_list))
+        print("Done!!!")
     if is_sort:
         file_list.sort()
     return file_list
@@ -84,22 +80,19 @@ def proc_one(path_midi, path_outfile):
         # process
         instr_idx = INSTR_NAME_MAP[instr.name]
         for note in instr.notes:
-            note.instr_idx=instr_idx
+            note.instr_idx = instr_idx
             instr_notes[instr_idx].append(note)
         if NOTE_SORTING == 0:
-            instr_notes[instr_idx].sort(
-                key=lambda x: (x.start, x.pitch))
+            instr_notes[instr_idx].sort(key=lambda x: (x.start, x.pitch))
         elif NOTE_SORTING == 1:
-            instr_notes[instr_idx].sort(
-                key=lambda x: (x.start, -x.pitch))
+            instr_notes[instr_idx].sort(key=lambda x: (x.start, -x.pitch))
         else:
-            raise ValueError(' [x] Unknown type of sorting.')
+            raise ValueError(" [x] Unknown type of sorting.")
 
     # load chords
     chords = []
     for marker in midi_obj.markers:
-        if marker.text.split('_')[0] != 'global' and \
-        'Boundary' not in marker.text.split('_')[0]:
+        if marker.text.split("_")[0] != "global" and "Boundary" not in marker.text.split("_")[0]:
             chords.append(marker)
     chords.sort(key=lambda x: x.time)
 
@@ -110,27 +103,26 @@ def proc_one(path_midi, path_outfile):
     # load labels
     labels = []
     for marker in midi_obj.markers:
-        if 'Boundary' in marker.text.split('_')[0]:
+        if "Boundary" in marker.text.split("_")[0]:
             labels.append(marker)
     labels.sort(key=lambda x: x.time)
 
     # load global bpm
     global_bpm = 120
     for marker in midi_obj.markers:
-        if marker.text.split('_')[0] == 'global' and \
-            marker.text.split('_')[1] == 'bpm':
-            global_bpm = int(marker.text.split('_')[2])
-        
+        if marker.text.split("_")[0] == "global" and marker.text.split("_")[1] == "bpm":
+            global_bpm = int(marker.text.split("_")[2])
+
     # --- process items to grid --- #
     # compute empty bar offset at head
     first_note_time = min([instr_notes[k][0].start for k in instr_notes.keys()])
     last_note_time = max([instr_notes[k][-1].start for k in instr_notes.keys()])
 
-    quant_time_first = int(np.round(first_note_time  / TICK_RESOL) * TICK_RESOL)
-    offset = quant_time_first // BAR_RESOL # empty bar
+    quant_time_first = int(np.round(first_note_time / TICK_RESOL) * TICK_RESOL)
+    offset = quant_time_first // BAR_RESOL  # empty bar
     last_bar = int(np.ceil(last_note_time / BAR_RESOL)) - offset
-    print(' > offset:', offset)
-    print(' > last_bar:', last_bar)
+    print(" > offset:", offset)
+    print(" > last_bar:", last_bar)
 
     # process notes
     instr_grid = dict()
@@ -145,13 +137,12 @@ def proc_one(path_midi, path_outfile):
             quant_time = int(np.round(note.start / TICK_RESOL) * TICK_RESOL)
 
             # velocity
-            note.velocity = DEFAULT_VELOCITY_BINS[
-                np.argmin(abs(DEFAULT_VELOCITY_BINS-note.velocity))]
+            note.velocity = DEFAULT_VELOCITY_BINS[np.argmin(abs(DEFAULT_VELOCITY_BINS - note.velocity))]
             note.velocity = max(MIN_VELOCITY, note.velocity)
 
             # shift of start
-            note.shift = note.start - quant_time 
-            note.shift = DEFAULT_SHIFT_BINS[np.argmin(abs(DEFAULT_SHIFT_BINS-note.shift))]
+            note.shift = note.start - quant_time
+            note.shift = DEFAULT_SHIFT_BINS[np.argmin(abs(DEFAULT_SHIFT_BINS - note.shift))]
 
             # duration
             note_duration = note.end - note.start
@@ -162,7 +153,7 @@ def proc_one(path_midi, path_outfile):
 
             # append
             note_grid[quant_time].append(note)
-        
+
         # set to track
         instr_grid[key] = note_grid.copy()
 
@@ -171,7 +162,7 @@ def proc_one(path_midi, path_outfile):
     for chord in chords:
         # quantize
         chord.time = chord.time - offset * BAR_RESOL
-        chord.time  = 0 if chord.time < 0 else chord.time 
+        chord.time = 0 if chord.time < 0 else chord.time
         quant_time = int(np.round(chord.time / TICK_RESOL) * TICK_RESOL)
 
         # append
@@ -184,7 +175,7 @@ def proc_one(path_midi, path_outfile):
         tempo.time = tempo.time - offset * BAR_RESOL
         tempo.time = 0 if tempo.time < 0 else tempo.time
         quant_time = int(np.round(tempo.time / TICK_RESOL) * TICK_RESOL)
-        tempo.tempo = DEFAULT_BPM_BINS[np.argmin(abs(DEFAULT_BPM_BINS-tempo.tempo))]
+        tempo.tempo = DEFAULT_BPM_BINS[np.argmin(abs(DEFAULT_BPM_BINS - tempo.tempo))]
 
         # append
         tempo_grid[quant_time].append(tempo)
@@ -199,50 +190,44 @@ def proc_one(path_midi, path_outfile):
 
         # append
         label_grid[quant_time] = [label]
-        
+
     # process global bpm
-    global_bpm = DEFAULT_BPM_BINS[np.argmin(abs(DEFAULT_BPM_BINS-global_bpm))]
+    global_bpm = DEFAULT_BPM_BINS[np.argmin(abs(DEFAULT_BPM_BINS - global_bpm))]
 
     # collect
     song_data = {
-        'notes': instr_grid,
-        'chords': chord_grid,
-        'tempos': tempo_grid,
-        'labels': label_grid,
-        'metadata': {
-            'global_bpm': global_bpm,
-            'last_bar': last_bar,
-        }
+        "notes": instr_grid,
+        "chords": chord_grid,
+        "tempos": tempo_grid,
+        "labels": label_grid,
+        "metadata": {"global_bpm": global_bpm, "last_bar": last_bar,},
     }
 
     # save
     fn = os.path.basename(path_outfile)
-    os.makedirs(path_outfile[:-len(fn)], exist_ok=True)
-    pickle.dump(song_data, open(path_outfile, 'wb'))
+    os.makedirs(path_outfile[: -len(fn)], exist_ok=True)
+    pickle.dump(song_data, open(path_outfile, "wb"))
 
 
 def midi2corpus(path_root: str):
-     # paths
-    path_indir = os.path.join(path_root, 'midi')
-    path_outdir = os.path.join(path_root, 'corpus')
+    # paths
+    path_indir = os.path.join(path_root, "midi")
+    path_outdir = os.path.join(path_root, "corpus")
     os.makedirs(path_outdir, exist_ok=True)
 
     # list files
-    midifiles = traverse_dir(
-        path_indir,
-        is_pure=True,
-        is_sort=True)
+    midifiles = traverse_dir(path_indir, is_pure=True, is_sort=True)
     n_files = len(midifiles)
-    print('num files:', n_files)
+    print("num files:", n_files)
 
     # run all
     for fidx in range(n_files):
         path_midi = midifiles[fidx]
-        print('{}/{}'.format(fidx, n_files))
+        print("{}/{}".format(fidx, n_files))
 
         # paths
         path_infile = os.path.join(path_indir, path_midi)
-        path_outfile = os.path.join(path_outdir, path_midi+'.pkl')
+        path_outfile = os.path.join(path_outdir, path_midi + ".pkl")
 
         # proc
         proc_one(path_infile, path_outfile)
