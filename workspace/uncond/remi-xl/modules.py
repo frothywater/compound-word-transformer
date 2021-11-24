@@ -249,12 +249,12 @@ class Embeddings(nn.Module):
 
 
 class MemTransformerLM(nn.Module):
-    def __init__(self, modelConfig,
+    def __init__(self, modelConfig, n_token,
                 tie_projs=[False], cutoffs=[], 
                  is_training=True):
         super(MemTransformerLM, self).__init__()
 
-        self.n_token = modelConfig['n_token']
+        self.n_token = n_token
         self.n_layer= modelConfig['n_layer']
         self.n_head= modelConfig['n_head']
         self.d_model = modelConfig['d_model']

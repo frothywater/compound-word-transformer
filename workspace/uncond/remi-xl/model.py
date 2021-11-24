@@ -135,7 +135,8 @@ class TransformerXL(object):
                 self.init_bias(m.r_bias)
 
     def get_model(self, pretrain_model=None):
-        model = MemTransformerLM(self.modelConfig, is_training=self.is_training)
+        n_token = len(self.event2word)
+        model = MemTransformerLM(self.modelConfig, n_token, is_training=self.is_training)
 
         st_eopch = 0
         if pretrain_model:

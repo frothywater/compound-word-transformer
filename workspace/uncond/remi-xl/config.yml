@@ -9,7 +9,6 @@ MODEL:
     dropatt: 0.0            # attention probability dropout rate
     query_dim: 16           # 64
     seq_len: 512            # 512
-    n_token: 221
     mem_len: 512            # Corpus-related parameter
     ext_len: 0
     tgt_len: 70
