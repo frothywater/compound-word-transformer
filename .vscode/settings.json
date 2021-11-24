@@ -4,8 +4,8 @@
   "python.linting.pylintEnabled": false,
   "python.linting.flake8Enabled": true,
   "python.linting.mypyEnabled": true,
-  "python.formatting.provider": "autopep8",
-  "python.formatting.autopep8Args": ["--max-line-width", "125"],
+  "python.formatting.provider": "black",
+  "python.formatting.blackArgs": ["--line-length", "125"],
   "python.linting.flake8Args": ["--max-line-width", "125"],
-  "editor.formatOnSaveMode": "modifications",
+  "editor.formatOnSaveMode": "file",
 }
