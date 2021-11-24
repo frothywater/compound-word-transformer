@@ -178,6 +178,10 @@ class TransformerXL(object):
         else:
             df.to_csv(os.path.join(checkpoint_dir, "loss.csv"), mode="a", header=False, index=False)
 
+    def note_word_mask(self, data):
+        note_words = [word for event, word in self.event2word.items() if event.startswith("Note_Pitch")]
+        return np.isin(data, note_words)
+
     def validate(self, val_data, batch_size, model: MemTransformerLM):
         val_x = val_data["x"]
         val_y = val_data["y"]
@@ -258,6 +262,9 @@ class TransformerXL(object):
         mask = train_data["mask"]
         num_groups = train_data["num_groups"]
 
+        pitch_shift_mask_x = self.note_word_mask(train_x)
+        pitch_shift_mask_y = self.note_word_mask(train_y)
+
         num_batches = len(train_x) // batch_size
 
         if val_data:
@@ -274,6 +281,9 @@ class TransformerXL(object):
             st_time = time.time()
             model.train()
 
+            # Choose a random pitch shift in [-3, 3] for each epoch
+            pitch_shift = np.random.choice(np.arange(-3, 4), 1).item()
+
             for bidx in range(num_batches):
                 model.zero_grad()
 
@@ -282,8 +292,9 @@ class TransformerXL(object):
                 bidx_ed = batch_size * (bidx + 1)
 
                 # get batch
-                batch_x = train_x[bidx_st:bidx_ed]
-                batch_y = train_y[bidx_st:bidx_ed]
+                # Introduce random pitch shift
+                batch_x = train_x[bidx_st:bidx_ed] + pitch_shift * pitch_shift_mask_x[bidx_st:bidx_ed]
+                batch_y = train_y[bidx_st:bidx_ed] + pitch_shift * pitch_shift_mask_y[bidx_st:bidx_ed]
                 batch_mask = mask[bidx_st:bidx_ed]
                 n_group = np.max(num_groups[bidx_st:bidx_ed])
 
