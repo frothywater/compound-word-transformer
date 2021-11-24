@@ -32,9 +32,12 @@ TRAIN:
     gpuID: '1'
     output_dir: "data/train"
     batch_size: 22
-    lr: 0.0002
-    num_epochs: 200
-    save_freq: 10
+    lr: 0.001
+    optim_adam_beta1: 0.9
+    optim_adam_beta2: 0.98
+    weight_decay: 0
+    num_epochs: 100
+    save_freq: 5
     seed: 2222
     optim: 'adam'
     no_cuda: False
@@ -45,8 +48,8 @@ INFERENCE:
     num_sample: 50
     gpuID: '2'
     dictionary_path: 'data/dictionary.pkl'
-    experiment_dir: 'data/train/'
+    experiment_dir: ''
     generated_dir: 'data/generated'
-    checkpoint_type: epoch_idx    # best_train, best_val, epoch_idx
-    model_epoch: 10
+    checkpoint_type: best_train    # best_train, best_val, epoch_idx
+    model_epoch: 
     no_cuda: False
