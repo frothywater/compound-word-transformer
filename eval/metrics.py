@@ -1,7 +1,12 @@
+import json
+import os
+
 import numpy as np
 from sklearn.model_selection import LeaveOneOut
 
+from loss import get_train_loss, get_valid_loss
 from mgeval import core, utils
+from utils import get_generated_midi, get_loss, get_valid_midi
 
 metrics_shape = {
     "total_used_pitch": (1,),
@@ -21,12 +26,14 @@ def features(files, num_samples):
     result = {metric: np.zeros((num_samples,) + metrics_shape[metric]) for metric in metrics}
     indices = np.random.choice(len(files), num_samples, replace=False)
     for metric in metrics:
-        count = 0
-        for i in indices:
-            feature = core.extract_feature(files[i])
-            metric_result = getattr(core.metrics(), metric)(feature)
-            result[metric][count] = metric_result
-            count += 1
+        for i, index in enumerate(indices):
+            feature = core.extract_feature(files[index])
+            if metric != "total_used_note":
+                metric_result = getattr(core.metrics(), metric)(feature)
+            else:
+                bar_used_notes = core.metrics().bar_used_note(feature, num_bar=32)
+                metric_result = np.sum(bar_used_notes)
+            result[metric][i] = metric_result
     return result
 
 
@@ -54,3 +61,50 @@ def kl_divergence(intra, inter):
 def overlap_area(intra, inter):
     return {metric: utils.overlap_area(intra[i], inter[i]) for i, metric in enumerate(metrics)}
 
+
+def calc_metrics(epochs: range, num_samples: int, path_root: str, path_train: str):
+
+    train_losses = get_train_loss(path_train)
+    valid_losses = get_valid_loss(path_train)
+
+    print("calculating valid midi...")
+    valid_midi = get_valid_midi(path_root)
+    features_val = features(valid_midi, num_samples)
+    intra_val = cross_valid(features_val, features_val)
+    mean_val, std_val = mean_std(intra_val)
+
+    result = {"valid": {"mean": mean_val, "std": std_val}}
+
+    for epoch in epochs:
+        print(f"{epoch=}")
+
+        generated_midi = get_generated_midi(path_root, epoch)
+        features_gen = features(generated_midi, num_samples)
+        inter = cross_valid(features_gen, features_val)
+        intra_gen = cross_valid(features_gen, features_gen)
+
+        mean, std = mean_std(intra_gen)
+        kldiv = kl_divergence(intra_gen, inter)
+        overlap = overlap_area(intra_gen, inter)
+        train_loss, valid_loss = get_loss(train_losses, valid_losses, epoch)
+
+        result[str(epoch)] = {
+            "mean": mean,
+            "std": std,
+            "kldiv": kldiv,
+            "overlap": overlap,
+            "train_loss": train_loss,
+            "valid_loss": valid_loss,
+        }
+
+    path_json = os.path.join(path_root, "eval", "metrics.json")
+    with open(path_json, "w") as file:
+        json.dump(result, file)
+
+
+if __name__ == "__main__":
+    path_root = "data"
+    path_train = "data/train/1"
+    epoch_range = range(20, 100 + 1, 20)
+
+    calc_metrics(epochs=epoch_range, num_samples=100, path_root=path_root, path_train=path_train)
