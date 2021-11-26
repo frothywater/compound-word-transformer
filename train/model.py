@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import time
+from typing import List
 
 import miditoolkit
 import numpy as np
@@ -386,62 +387,67 @@ class TransformerXL(object):
                     print("Experiment [{}] finished because no valid_loss drop since last 5 epochs.".format(checkpoint_dir))
                     break
 
-    def inference(self, model, token_lim, strategies, params, output_path):
+    def inference(
+        self,
+        model: MemTransformerLM,
+        target_bar: int,
+        params: dict,
+        output_path: str,
+        prompt: list = None,
+        prompt_bar: int = 4,
+    ):
+        batch_size = 1
+        mems: tuple = tuple()
+        bar_none_word = self.event2word["Bar_None"]
+        start_time = time.time()
         model.eval()
 
-        # initial start
-        words = [[]]
+        # Feed the prompt, but leave out any outputs
+        if prompt is not None:
+            words_prompt = []
+            bar_count = 0
+            # Select words within the given bar range
+            for word in prompt:
+                if word == bar_none_word:
+                    bar_count += 1
+                if bar_count > prompt_bar:
+                    break
+                words_prompt.append(word)
 
-        # add beat
-        words[-1].append(self.event2word["Bar_None"])
-
-        # initialize mem
-        mems = tuple()
-        song_init_time = time.time()
-        # generate
-        initial_flag = True
-        generate_n_bar = 0
-        batch_size = 1
-        while len(words[0]) < token_lim:
-            # prepare input
-            if initial_flag:
-                temp_x = np.zeros((len(words[0]), batch_size))
-                for b in range(batch_size):
-                    for z, t in enumerate(words[b]):
-                        temp_x[z][b] = t
-
-                initial_flag = False
-            else:
+            for word in words_prompt:
                 temp_x = np.zeros((1, batch_size))
-                for b in range(batch_size):
-                    temp_x[0][b] = words[b][-1]  ####?####
+                temp_x[0][0] = word
+                x = torch.from_numpy(temp_x).long().to(self.device)
+                _, mems = model.generate(x, *mems)
 
-            temp_x = torch.from_numpy(temp_x).long().to(self.device)
-            st_time = time.time()
+        bar_count = prompt_bar if prompt is not None else 0
+        words = [bar_none_word]
+        temp_x = np.zeros((1, batch_size))
+        temp_x[0][0] = words[0]
 
-            _logits, mems = model.generate(temp_x, *mems)
+        # With the memory, generate the real part
+        while bar_count < target_bar:
+            x = torch.from_numpy(temp_x).long().to(self.device)
+            _logits, mems = model.generate(x, *mems)
             logits = _logits.cpu().squeeze().detach().numpy()
 
-            # temperature or not
-            temperature = params["t"] if "temperature" in strategies else 1.0
+            temperature = params["t"] if "t" in params else 1.0
             probs = self.temperature(logits, temperature)
-            # sampling
-            if "top-k" in strategies:
+            if "k" in params:
                 word = self.topk(probs=probs, k=params["k"])
-            elif "nucleus" in strategies:
+            elif "p" in params:
                 word = self.nucleus(probs=probs, p=params["p"])
-            words[0].append(word)
+            words.append(word)
 
-            # print(len(words[0]), self.word2event[word])
-            # record n_bar
+            temp_x = np.zeros((1, batch_size))
+            temp_x[0][0] = word
+
             if word == self.event2word["Bar_None"]:
-                generate_n_bar += 1
+                bar_count += 1
 
-        write_midi(words[0], output_path, self.word2event)
-
-        song_total_time = time.time() - song_init_time
-        print("Total words generated: ", len(words[0]))
-        return song_total_time, len(words[0])
+        write_midi(words, output_path, self.word2event)
+        used_time = time.time() - start_time
+        print(f"token_count={len(words)}, bar_count={bar_count}, used_time={used_time:.2f}s")
 
     ########################################
     # search strategy: temperature (re-shape)

@@ -5,14 +5,19 @@ import re
 import yaml
 
 
-def get_all_epochs(path: str, step=10):
-    for _, _, files in os.walk(path):
-        tar_files = filter(lambda s: s.startswith("ep") and s.endswith("tar"), files)
-        digits_regex = re.compile(r"\d+")
-        result = [int(digits_regex.findall(name)[0]) for name in tar_files]
+def get_all_epochs(path: str, step=None, max=None, min=None):
+    files = os.listdir(path)
+    tar_files = filter(lambda s: s.startswith("ep") and s.endswith("tar"), files)
+    digits_regex = re.compile(r"\d+")
+    result = [int(digits_regex.findall(name)[0]) for name in tar_files]
+    if step:
         result = [x for x in result if x % step == 0]
-        result.sort()
-        return result
+    if max:
+        result = [x for x in result if x <= max]
+    if min:
+        result = [x for x in result if x >= min]
+    result.sort()
+    return result
 
 
 def get_path_last_model(path: str):
