@@ -9,8 +9,9 @@ def get_valid_midi(path_root: str):
     return [key.replace("words/", "midi/").replace(".pkl.npy", "") for key in valid_dict.keys()]
 
 
-def get_generated_midi(path_root: str, epoch: int):
-    path_dir = os.path.join(path_root, "generated", str(epoch))
+def get_generated_midi(path_root: str, epoch: int, conditional=False):
+    folder_name = "cond" if conditional else "uncond"
+    path_dir = os.path.join(path_root, "generated", folder_name, str(epoch))
     return [os.path.join(path_dir, file) for file in os.listdir(path_dir) if file.endswith("mid")]
 
 
@@ -26,12 +27,16 @@ def get_loss(train_losses, valid_losses, epoch: int):
     return train_loss, valid_loss
 
 
-def get_all_epochs(path: str, step=None):
-    for _, _, files in os.walk(path):
-        tar_files = filter(lambda s: s.startswith("ep") and s.endswith("tar"), files)
-        digits_regex = re.compile(r"\d+")
-        result = [int(digits_regex.findall(name)[0]) for name in tar_files]
-        if step is not None:
-            result = [x for x in result if x % step == 0]
-        result.sort()
-        return result
+def get_all_epochs(path: str, step=None, max=None, min=None):
+    files = os.listdir(path)
+    tar_files = filter(lambda s: s.startswith("ep") and s.endswith("tar"), files)
+    digits_regex = re.compile(r"\d+")
+    result = [int(digits_regex.findall(name)[0]) for name in tar_files]
+    if step:
+        result = [x for x in result if x % step == 0]
+    if max:
+        result = [x for x in result if x <= max]
+    if min:
+        result = [x for x in result if x >= min]
+    result.sort()
+    return result

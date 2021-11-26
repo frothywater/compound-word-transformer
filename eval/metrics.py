@@ -62,8 +62,24 @@ def overlap_area(intra, inter):
     return {metric: utils.overlap_area(intra[i], inter[i]) for i, metric in enumerate(metrics)}
 
 
-def calc_metrics(epochs: range, num_samples: int, path_root: str, path_train: str):
+def metrics_object(gen_midi, features_val, num_samples):
+    features_gen = features(gen_midi, num_samples)
+    inter = cross_valid(features_gen, features_val)
+    intra_gen = cross_valid(features_gen, features_gen)
 
+    mean, std = mean_std(intra_gen)
+    kldiv = kl_divergence(intra_gen, inter)
+    overlap = overlap_area(intra_gen, inter)
+
+    return {
+        "mean": mean,
+        "std": std,
+        "kldiv": kldiv,
+        "overlap": overlap,
+    }
+
+
+def calc_metrics(epochs: range, num_samples: int, path_root: str, path_train: str):
     train_losses = get_train_loss(path_train)
     valid_losses = get_valid_loss(path_train)
 
@@ -77,22 +93,12 @@ def calc_metrics(epochs: range, num_samples: int, path_root: str, path_train: st
 
     for epoch in epochs:
         print(f"{epoch=}")
-
-        generated_midi = get_generated_midi(path_root, epoch)
-        features_gen = features(generated_midi, num_samples)
-        inter = cross_valid(features_gen, features_val)
-        intra_gen = cross_valid(features_gen, features_gen)
-
-        mean, std = mean_std(intra_gen)
-        kldiv = kl_divergence(intra_gen, inter)
-        overlap = overlap_area(intra_gen, inter)
+        uncond_midi = get_generated_midi(path_root, epoch, conditional=False)
+        cond_midi = get_generated_midi(path_root, epoch, conditional=True)
         train_loss, valid_loss = get_loss(train_losses, valid_losses, epoch)
-
         result[str(epoch)] = {
-            "mean": mean,
-            "std": std,
-            "kldiv": kldiv,
-            "overlap": overlap,
+            "uncond": metrics_object(uncond_midi, features_val, num_samples),
+            "cond": metrics_object(cond_midi, features_val, num_samples),
             "train_loss": train_loss,
             "valid_loss": valid_loss,
         }

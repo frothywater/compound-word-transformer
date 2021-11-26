@@ -26,25 +26,22 @@ def get_metrics_content(path_root: str):
 
 
 def get_data(content):
-    def to_metrics_array(dict):
-        return [dict[metric] for metric in metrics]
+    def metrics_arrays(dict):
+        items = ["mean", "std", "kldiv", "overlap"]
+        return [[dict[item][metric] for metric in metrics] for item in items if item in dict]
 
-    data = []
-    epochs = []
-    train_loss = []
-    valid_loss = []
-    for key in content.keys():
-        data.append(to_metrics_array(content[key]["mean"]))
-        data.append(to_metrics_array(content[key]["std"]))
-        if key != "valid":
-            epochs.append(int(key))
-            data.append(to_metrics_array(content[key]["kldiv"]))
-            data.append(to_metrics_array(content[key]["overlap"]))
-            train_loss.append(content[key]["train_loss"])
-            valid_loss.append(content[key]["valid_loss"])
+    epochs = [int(key) for key in content.keys() if key != "valid"]
+    train_loss = [content[str(epoch)]["train_loss"] for epoch in epochs]
+    valid_loss = [content[str(epoch)]["valid_loss"] for epoch in epochs]
+    raw_data_uncond = metrics_arrays(content["valid"])
+    raw_data_cond = metrics_arrays(content["valid"])
+    for epoch in epochs:
+        raw_data_uncond += metrics_arrays(content[str(epoch)]["uncond"])
+        raw_data_cond += metrics_arrays(content[str(epoch)]["cond"])
 
-    data_stack = np.column_stack(data)
-    return epochs, train_loss, valid_loss, data_stack
+    data_uncond = np.column_stack(raw_data_uncond)
+    data_cond = np.column_stack(raw_data_cond)
+    return epochs, data_uncond, data_cond, train_loss, valid_loss
 
 
 def multi_index(epochs):
@@ -61,8 +58,8 @@ def multi_index(epochs):
     return pd.MultiIndex.from_tuples(result)
 
 
-def dataframe_metrics(data_stack, epochs):
-    df = pd.DataFrame(data_stack, index=pd.Index(metric_labels), columns=multi_index(epochs))
+def dataframe_metrics(data, epochs):
+    df = pd.DataFrame(data, index=pd.Index(metric_labels), columns=multi_index(epochs))
     pd.set_option("display.precision", 4)
     return df
 
@@ -73,11 +70,14 @@ def figure_overlap(content, epochs):
     for i, metric in enumerate(metrics):
         plt.subplot(3, 3, i + 1)
         x = epochs
-        y = [content[str(epoch)]["overlap"][metric] for epoch in epochs]
-        plt.plot(x, y)
-        plt.ylim([0, 1])
+        y_uncond = [content[str(epoch)]["uncond"]["overlap"][metric] for epoch in epochs]
+        y_cond = [content[str(epoch)]["cond"]["overlap"][metric] for epoch in epochs]
+        plt.plot(x, y_uncond, label="uncond")
+        plt.plot(x, y_cond, label="cond")
+        plt.ylim([0.0, 1.0])
         plt.title(metric)
         plt.xlabel("epoch")
+        plt.legend()
     plt.close()
     return fig
 
@@ -87,6 +87,7 @@ def figure_loss(epochs, train_loss, valid_loss):
     plt.plot(epochs, train_loss, label="train_loss")
     plt.plot(epochs, valid_loss, label="valid_loss")
     plt.xlabel("epoch")
-    plt.legend()
+    plt.legend(loc="lower left")
     plt.close()
     return fig
+
