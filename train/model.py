@@ -447,7 +447,16 @@ class TransformerXL(object):
             if word == self.event2word["Bar_None"]:
                 bar_count += 1
 
-        write_midi(words, output_path, self.word2event)
+        # Write midi files
+        if prompt is not None:
+            prompt_output_path = output_path.replace(".mid", "_prompt.mid")
+            original_output_path = output_path.replace(".mid", "_original.mid")
+            generated_output_path = output_path.replace(".mid", "_generated.mid")
+            write_midi(words_prompt, prompt_output_path, self.word2event)
+            write_midi(prompt, original_output_path, self.word2event)
+            write_midi(words_prompt + words, generated_output_path, self.word2event)
+        else:
+            write_midi(words, output_path, self.word2event)
         used_time = time.time() - start_time
         print(f"token_count={len(words)}, bar_count={bar_count}, used_time={used_time:.2f}s")
 
