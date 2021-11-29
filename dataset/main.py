@@ -1,7 +1,7 @@
-import midi2corpus
-import corpus2events
-import events2words
-import compile
+from compile import compile
+from corpus2events import corpus2events
+from events2words import events2words
+from midi2corpus import midi2corpus
 
 
 def main():
