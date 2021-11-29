@@ -12,10 +12,10 @@ from utils import get_all_epochs, get_configs
 path_root = "data"
 
 
-def get_valid_words(path_root: str):
-    path_valid_dict = os.path.join(path_root, "valid_dict.json")
-    valid_dict: dict = json.load(open(path_valid_dict, "r", encoding="utf-8"))
-    paths = [key for key in valid_dict.keys()]
+def get_test_words(path_root: str):
+    path_test_dict = os.path.join(path_root, "test_dict.json")
+    test_dict: dict = json.load(open(path_test_dict, "r", encoding="utf-8"))
+    paths = [key for key in test_dict.keys()]
     names = [os.path.basename(path).replace(".mid.pkl.npy", "") for path in paths]
     words = [np.load(path) for path in paths]
     return zip(names, words)
@@ -44,9 +44,9 @@ def inference(path_root: str, epoch: int, inference_config, conditional=False):
     _, inner_model = model.get_model(model_path)
 
     if conditional:
-        for name, words in get_valid_words(path_root):
+        for name, words in get_test_words(path_root):
             print(midi_folder, name)
-            output_path = os.path.join(midi_folder, f"{name}_cond.mid")
+            output_path = os.path.join(midi_folder, f"{name}.mid")
             model.inference(
                 model=inner_model,
                 target_bar=32,

@@ -15,8 +15,8 @@ def valid(resume_path: str, model_config, train_config, inference_config):
     # load dictionary
     event2word, word2event = pickle.load(open(os.path.join(path_root, "dictionary.pkl"), "rb"))
 
-    # load train data
-    valid_data = np.load(os.path.join(path_root, "test_data_XL.npz"))
+    # load valid data
+    valid_data = np.load(os.path.join(path_root, "valid_data_XL.npz"))
 
     gpuID = inference_config["gpuID"]
     device = torch.device(f"cuda:{gpuID}" if not train_config["no_cuda"] and torch.cuda.is_available() else "cpu")

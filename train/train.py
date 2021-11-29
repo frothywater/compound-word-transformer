@@ -19,8 +19,7 @@ def main():
 
     # load train data
     training_data = np.load(os.path.join(path_root, "train_data_XL.npz"))
-    # valid_data = np.load(os.path.join(path_root, "test_data_XL.npz"))
-    valid_data = None
+    valid_data = np.load(os.path.join(path_root, "valid_data_XL.npz"))
 
     gpuID = train_config["gpuID"]
     device = torch.device(f"cuda:{gpuID}" if not train_config["no_cuda"] and torch.cuda.is_available() else "cpu")
