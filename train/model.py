@@ -403,8 +403,8 @@ class TransformerXL(object):
         model.eval()
 
         # Feed the prompt, but leave out any outputs
+        words_prompt = []
         if prompt is not None:
-            words_prompt = []
             bar_count = 0
             # Select words within the given bar range
             for word in prompt:
@@ -414,11 +414,12 @@ class TransformerXL(object):
                     break
                 words_prompt.append(word)
 
-            for word in words_prompt:
-                temp_x = np.zeros((1, batch_size))
-                temp_x[0][0] = word
-                x = torch.from_numpy(temp_x).long().to(self.device)
-                _, mems = model.generate(x, *mems)
+            with torch.no_grad():
+                for word in words_prompt:
+                    temp_x = np.zeros((1, batch_size))
+                    temp_x[0][0] = word
+                    x = torch.from_numpy(temp_x).long().to(self.device)
+                    _, mems = model.generate(x, *mems)
 
         bar_count = prompt_bar if prompt is not None else 0
         words = [bar_none_word]
@@ -427,9 +428,10 @@ class TransformerXL(object):
 
         # With the memory, generate the real part
         while bar_count < target_bar:
-            x = torch.from_numpy(temp_x).long().to(self.device)
-            _logits, mems = model.generate(x, *mems)
-            logits = _logits.cpu().squeeze().detach().numpy()
+            with torch.no_grad():
+                x = torch.from_numpy(temp_x).long().to(self.device)
+                _logits, mems = model.generate(x, *mems)
+                logits = _logits.cpu().squeeze().detach().numpy()
 
             temperature = params["t"] if "t" in params else 1.0
             probs = self.temperature(logits, temperature)
