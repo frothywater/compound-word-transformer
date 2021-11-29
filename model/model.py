@@ -167,14 +167,15 @@ class TransformerXL(object):
         elif state["epoch"] % save_freq == 0:
             torch.save(state, os.path.join(root, "ep_{}.pth.tar".format(state["epoch"])))
 
-    def train_loss_record(self, epoch, train_loss, checkpoint_dir, val_loss=None):
-        if val_loss:
-            df = pd.DataFrame({"epoch": [epoch + 1], "train_loss": ["%.3f" % train_loss], "val_loss": ["%.3f" % val_loss]})
+    def train_loss_record(self, epoch, train_loss, checkpoint_dir, valid_loss=None):
+        if valid_loss:
+            df = pd.DataFrame(
+                {"epoch": [epoch + 1], "train_loss": ["%.3f" % train_loss], "valid_loss": ["%.3f" % valid_loss]}
+            )
         else:
             df = pd.DataFrame({"epoch": [epoch + 1], "train_loss": ["%.3f" % train_loss]})
 
         csv_file = os.path.join(checkpoint_dir, "loss.csv")
-
         if not os.path.exists(csv_file):
             df.to_csv(csv_file, index=False)
         else:
@@ -246,21 +247,19 @@ class TransformerXL(object):
 
         return val_loss
 
-    def train(self, train_data, val_data, train_config, resume_path, stop_valid_loss):
+    def train(self, train_data, valid_data, train_config, resume_path):
         checkpoint_dir = train_config["experiment_dir"]
         batch_size = train_config["batch_size"]
-        torch.manual_seed(train_config["seed"])
-
+        epoch_count = train_config["num_epochs"]
         # create saver
         saver_agent = saver.Saver(checkpoint_dir)
-
-        # Prepare model
+        # prepare model
         if resume_path != "None":
             st_epoch, model = self.get_model(resume_path)
             print("Continue to train from {} epoch".format(st_epoch))
         else:
             st_epoch, model = self.get_model()
-
+        # prepare optimizer
         optimizer = optim.AdamW(
             model.parameters(),
             lr=train_config["lr"],
@@ -269,60 +268,47 @@ class TransformerXL(object):
         )
         epoch_train_loss = []
         save_freq = train_config["save_freq"]
-
         n_parameters = network_paras(model)
         print("n_parameters: {:,}".format(n_parameters))
         saver_agent.add_summary_msg(" > params amount: {:,d}".format(n_parameters))
 
-        # unpack
+        # unpack training data
         train_x = train_data["x"]
         train_y = train_data["y"]
         mask = train_data["mask"]
         num_groups = train_data["num_groups"]
-
+        num_batches = len(train_x) // batch_size
+        # create note masks for pitch shifting
         pitch_shift_mask_x = self.note_word_mask(train_x)
         pitch_shift_mask_y = self.note_word_mask(train_y)
-
-        num_batches = len(train_x) // batch_size
-
-        if val_data:
-            all_val_loss = []
-            if stop_valid_loss:
-                min_val_loss = float("inf")
-                min_val_loss_epoch = 0
-
         print(">>> Start training")
-        for epoch in range(st_epoch, train_config["num_epochs"]):
-            saver_agent.global_step_increment()
+        torch.manual_seed(train_config["seed"])
 
-            train_loss = []
+        for epoch in range(st_epoch, epoch_count):
             st_time = time.time()
+            train_loss = []
+            saver_agent.global_step_increment()
             model.train()
-
             # Choose a random pitch shift in [-3, 3] for each epoch
             pitch_shift = np.random.choice(np.arange(-3, 4), 1).item()
 
             for bidx in range(num_batches):
                 model.zero_grad()
-
                 # index
                 bidx_st = batch_size * bidx
                 bidx_ed = batch_size * (bidx + 1)
-
                 # get batch
-                # Introduce random pitch shift
+                # [new] introduce random pitch shift
                 batch_x = train_x[bidx_st:bidx_ed] + pitch_shift * pitch_shift_mask_x[bidx_st:bidx_ed]
                 batch_y = train_y[bidx_st:bidx_ed] + pitch_shift * pitch_shift_mask_y[bidx_st:bidx_ed]
                 batch_mask = mask[bidx_st:bidx_ed]
                 n_group = np.max(num_groups[bidx_st:bidx_ed])
-
-                # proc groups
+                # process groups
                 mems = tuple()
                 for gidx in range(n_group):
                     group_x = batch_x[:, gidx, :]
                     group_y = batch_y[:, gidx, :]
                     group_mask = batch_mask[:, gidx, :]
-
                     group_x = torch.from_numpy(group_x).permute(1, 0).contiguous().to(self.device).long()  # (seq_len, bsz)
                     group_y = torch.from_numpy(group_y).permute(1, 0).contiguous().to(self.device).long()
                     group_mask = torch.from_numpy(group_mask).to(self.device).float()
@@ -333,59 +319,44 @@ class TransformerXL(object):
                     loss.backward()
 
                     sys.stdout.write(
-                        "epoch:{:3d}/{:3d}, batch: {:4d}/{:4d}, group: {:2d}/{:2d} | Loss: {:6f}\r".format(
-                            epoch, train_config["num_epochs"], bidx, num_batches, gidx, n_group, loss.item()
-                        )
+                        f"epoch: {epoch+1}/{epoch_count}, batch: {bidx+1}/{num_batches}, "
+                        + f"group: {gidx+1}/{n_group} | loss: {loss.item():5f}\r"
                     )
                     sys.stdout.flush()
-
                 optimizer.step()
 
-            if val_data:
-                val_loss = self.validate(val_data, batch_size, model)
-                all_val_loss.append(val_loss)
-                saver_agent.add_summary("valid loss", val_loss)
-                if stop_valid_loss:
-                    current_min_val_loss = False
-                    if val_loss < min_val_loss:
-                        min_val_loss = val_loss
-                        min_val_loss_epoch = epoch
-                        current_min_val_loss = True
-            best_val = val_data is not None and current_min_val_loss
+            # validate
+            if valid_data:
+                valid_loss = self.validate(valid_data, batch_size, model)
+                saver_agent.add_summary("valid loss", valid_loss)
 
-            curr_train_loss = sum(train_loss) / len(train_loss)
-            saver_agent.add_summary("epoch loss", curr_train_loss)
+            average_train_loss = sum(train_loss) / len(train_loss)
+            saver_agent.add_summary("epoch loss", average_train_loss)
 
-            epoch_train_loss.append(curr_train_loss)
-            epoch_info = f"Epoch: {epoch+1}, Train Loss: {curr_train_loss:.5f}"
-            if val_data:
-                epoch_info += f", Valid Loss: {val_loss}"
-            epoch_info += f", T: {time.time() - st_time:.3f}"
+            epoch_train_loss.append(average_train_loss)
+            epoch_info = f"Epoch: {epoch+1}, Train Loss: {average_train_loss:.5f}"
+            if valid_data:
+                epoch_info += f", Valid Loss: {valid_loss:.5f}"
+            epoch_info += f", Time: {time.time() - st_time:.3f}"
             print(epoch_info)
 
-            self.train_loss_record(epoch, curr_train_loss, checkpoint_dir)
+            self.train_loss_record(epoch, average_train_loss, checkpoint_dir, valid_loss)
             self.save_checkpoint(
                 {
                     "epoch": epoch + 1,
                     "model_setting": self.modelConfig,
                     "train_setting": train_config,
                     "state_dict": model.state_dict(),
-                    "best_loss": curr_train_loss,
+                    "best_loss": average_train_loss,
                     "optimizer": optimizer.state_dict(),
                 },
                 checkpoint_dir,
                 save_freq,
-                best_val,
             )
 
-            if curr_train_loss < 0.01:
+            if average_train_loss < 0.01:
                 print("Experiment [{}] finished at loss < 0.01.".format(checkpoint_dir))
                 break
-
-            if val_data is not None and stop_valid_loss:
-                if epoch - min_val_loss_epoch >= 5:
-                    print("Experiment [{}] finished because no valid_loss drop since last 5 epochs.".format(checkpoint_dir))
-                    break
 
     def inference(
         self,
@@ -449,10 +420,8 @@ class TransformerXL(object):
 
         # Write midi files
         if prompt is not None:
-            prompt_output_path = output_path.replace(".mid", "_prompt.mid")
             original_output_path = output_path.replace(".mid", "_original.mid")
             generated_output_path = output_path.replace(".mid", "_generated.mid")
-            write_midi(words_prompt, prompt_output_path, self.word2event)
             write_midi(prompt, original_output_path, self.word2event)
             write_midi(words_prompt + words, generated_output_path, self.word2event)
         else:

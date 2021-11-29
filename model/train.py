@@ -34,7 +34,7 @@ def main():
     model = TransformerXL(model_config, device, event2word=event2word, word2event=word2event, is_training=True)
 
     # train
-    model.train(training_data, valid_data, train_config, resume_path, stop_valid_loss=False)
+    model.train(training_data, valid_data, train_config, resume_path)
 
 
 if __name__ == "__main__":
