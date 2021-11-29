@@ -9,9 +9,8 @@ WINDOW_SIZE = 512
 GROUP_SIZE = 5  # Group size should be smaller since the skeleton files are shorter
 MAX_LEN = WINDOW_SIZE * GROUP_SIZE
 COMPILE_TARGET = "XL"  # 'linear', 'XL'
-VALID_RATIO = 0.05
-VALID_COUNT = 100
-VALID_SAMPLING_MODE = "count"
+TEST_COUNT = 50
+VALID_COUNT = 50
 print("[config] MAX_LEN:", MAX_LEN)
 
 
@@ -121,22 +120,18 @@ def compile(path_root: str):
     print(" > y_final:", y_final.shape)
     print(" > mask_final:", mask_final.shape)
 
-    # split train/test
-    if VALID_SAMPLING_MODE == "count":
-        valid_count = VALID_COUNT
-    elif VALID_SAMPLING_MODE == "ratio":
-        valid_count = math.trunc(VALID_RATIO * num_samples)
-    else:
-        raise ValueError(f"Unknown validation data sampling mode: {VALID_SAMPLING_MODE}")
+    # split train/valid/test
+    nontrain_count = VALID_COUNT + TEST_COUNT
+    nontrain_idx = np.random.choice(num_samples, nontrain_count, replace=False)
+    train_idx = np.setdiff1d(np.arange(num_samples), nontrain_idx)
+    valid_idx = nontrain_idx[:VALID_COUNT]
+    test_idx = nontrain_idx[VALID_COUNT:]
 
-    test_idx = np.random.choice(num_samples, valid_count, replace=False)
-    train_idx = np.setdiff1d(np.arange(num_samples), test_idx)
-
-    # build dictionary for validation data
-    valid_dict = {name_list[index.item()]: index.item() for index in test_idx}
-    path_valid_dict = os.path.join(path_root, "valid_dict.json")
-    with open(path_valid_dict, "w", encoding="utf-8") as file_json:
-        json.dump(valid_dict, file_json, indent=4, sort_keys=True, ensure_ascii=False)
+    # build dictionary for testing data
+    test_dict = {name_list[index.item()]: index.item() for index in test_idx}
+    path_test_dict = os.path.join(path_root, "test_dict.json")
+    with open(path_test_dict, "w", encoding="utf-8") as file_json:
+        json.dump(test_dict, file_json, indent=4, sort_keys=True, ensure_ascii=False)
 
     # save train
     path_train = os.path.join(path_root, "train_data_{}.npz".format(COMPILE_TARGET))
@@ -150,15 +145,14 @@ def compile(path_root: str):
     )
     print(" > train x:", x_final[train_idx].shape)
 
-    # save test
-    if len(test_idx):
-        path_test = os.path.join(path_root, "test_data_{}.npz".format(COMPILE_TARGET))
-        np.savez(
-            path_test,
-            x=x_final[test_idx],
-            y=y_final[test_idx],
-            mask=mask_final[test_idx],
-            seq_len=np.array(seq_len_list)[test_idx],
-            num_groups=np.array(num_groups_list)[test_idx],
-        )
-        print(" >  test x:", x_final[test_idx].shape)
+    # save valid
+    path_valid = os.path.join(path_root, "valid_data_{}.npz".format(COMPILE_TARGET))
+    np.savez(
+        path_valid,
+        x=x_final[valid_idx],
+        y=y_final[valid_idx],
+        mask=mask_final[valid_idx],
+        seq_len=np.array(seq_len_list)[valid_idx],
+        num_groups=np.array(num_groups_list)[valid_idx],
+    )
+    print(" > valid x:", x_final[valid_idx].shape)
