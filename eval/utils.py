@@ -2,6 +2,8 @@ import json
 import os
 import re
 
+import pandas as pd
+
 
 def get_test_midi(path_root: str):
     path_test_dict = os.path.join(path_root, "test_dict.json")
@@ -15,16 +17,13 @@ def get_generated_midi(path_root: str, epoch: int, conditional=False):
     return [os.path.join(path_dir, file) for file in os.listdir(path_dir) if file.endswith("mid")]
 
 
-def get_loss(train_losses, valid_losses, epoch: int):
-    for e, loss in zip(train_losses[0], train_losses[1]):
-        if e == epoch:
-            train_loss = loss
-            break
-    for e, loss in zip(valid_losses[0], valid_losses[1]):
-        if e == epoch:
-            valid_loss = loss
-            break
-    return train_loss, valid_loss
+def get_loss_dict(path_train: str):
+    path_csv = os.path.join(path_train, "loss.csv")
+    content = pd.read_csv(path_csv).values
+    result: dict = {}
+    for row in content:
+        result[row[0]] = {"train_loss": float(row[1]), "valid_loss": float(row[2])}
+    return result
 
 
 def get_all_epochs(path: str, step=None, max=None, min=None):

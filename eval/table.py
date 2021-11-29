@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from utils import get_loss_dict
+
 metrics = [
     "total_used_pitch",  # PC
     "total_used_note",  # NC
@@ -31,8 +33,6 @@ def get_data(content):
         return [[dict[item][metric] for metric in metrics] for item in items if item in dict]
 
     epochs = [int(key) for key in content.keys() if key != "test"]
-    train_loss = [content[str(epoch)]["train_loss"] for epoch in epochs]
-    valid_loss = [content[str(epoch)]["valid_loss"] for epoch in epochs]
     raw_data_uncond = metrics_arrays(content["test"])
     raw_data_cond = metrics_arrays(content["test"])
     for epoch in epochs:
@@ -41,7 +41,7 @@ def get_data(content):
 
     data_uncond = np.column_stack(raw_data_uncond)
     data_cond = np.column_stack(raw_data_cond)
-    return epochs, data_uncond, data_cond, train_loss, valid_loss
+    return epochs, data_uncond, data_cond
 
 
 def multi_index(epochs):
@@ -82,7 +82,12 @@ def figure_overlap(content, epochs):
     return fig
 
 
-def figure_loss(epochs, train_loss, valid_loss):
+def figure_loss(path_train: str):
+    loss_dict = get_loss_dict(path_train)
+    epochs = [int(key) for key in loss_dict]
+    train_loss = [value["train_loss"] for value in loss_dict.values()]
+    valid_loss = [value["valid_loss"] for value in loss_dict.values()]
+
     fig = plt.figure()
     plt.plot(epochs, train_loss, label="train_loss")
     plt.plot(epochs, valid_loss, label="valid_loss")

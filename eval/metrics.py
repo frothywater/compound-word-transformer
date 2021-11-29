@@ -4,9 +4,8 @@ import os
 import numpy as np
 from sklearn.model_selection import LeaveOneOut
 
-from loss import get_train_loss, get_valid_loss
 from mgeval import core, utils
-from utils import get_generated_midi, get_loss, get_test_midi
+from utils import get_generated_midi, get_loss_dict, get_test_midi
 
 metrics_shape = {
     "total_used_pitch": (1,),
@@ -79,10 +78,7 @@ def metrics_object(gen_midi, features_test, num_samples):
     }
 
 
-def calc_metrics(epochs: range, num_samples: int, path_root: str, path_train: str):
-    train_losses = get_train_loss(path_train)
-    valid_losses = get_valid_loss(path_train)
-
+def calc_metrics(epochs: range, num_samples: int, path_root: str):
     print("Calculating testing midi...")
     test_midi = get_test_midi(path_root)
     features_test = features(test_midi, num_samples)
@@ -95,12 +91,10 @@ def calc_metrics(epochs: range, num_samples: int, path_root: str, path_train: st
         print(f"{epoch=}")
         uncond_midi = get_generated_midi(path_root, epoch, conditional=False)
         cond_midi = get_generated_midi(path_root, epoch, conditional=True)
-        train_loss, valid_loss = get_loss(train_losses, valid_losses, epoch)
-        result[str(epoch)] = {
+        epoch_str = str(epoch)
+        result[epoch_str] = {
             "uncond": metrics_object(uncond_midi, features_test, num_samples),
             "cond": metrics_object(cond_midi, features_test, num_samples),
-            "train_loss": train_loss,
-            "valid_loss": valid_loss,
         }
 
     path_json = os.path.join(path_root, "eval", "metrics.json")
@@ -110,7 +104,6 @@ def calc_metrics(epochs: range, num_samples: int, path_root: str, path_train: st
 
 if __name__ == "__main__":
     path_root = "data"
-    path_train = "data/train/1"
     epoch_range = range(20, 100 + 1, 20)
 
-    calc_metrics(epochs=epoch_range, num_samples=100, path_root=path_root, path_train=path_train)
+    calc_metrics(epochs=epoch_range, num_samples=100, path_root=path_root)
