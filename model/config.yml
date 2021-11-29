@@ -38,7 +38,7 @@ TRAIN:
     seed: 2222
     optim: 'adam'
     no_cuda: False
-    resume_training_model: True
+    resume_training_model: False
 
 
 INFERENCE:
