@@ -33,8 +33,8 @@ TRAIN:
     optim_adam_beta1: 0.9
     optim_adam_beta2: 0.98
     weight_decay: 0
-    num_epochs: 200
-    save_freq: 5
+    num_epochs: 100
+    save_freq: 10
     seed: 2222
     optim: 'adam'
     no_cuda: False
@@ -42,7 +42,7 @@ TRAIN:
 
 
 INFERENCE:
-    num_sample: 100
+    num_sample: 50
     gpuID: '2'
     train_id: 1
     no_cuda: False
