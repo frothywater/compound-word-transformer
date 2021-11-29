@@ -45,7 +45,7 @@ def events2words(path_root: str):
     # list files
     eventfiles = traverse_dir(path_indir, is_pure=True, is_sort=True, extension=("pkl"))
     n_files = len(eventfiles)
-    print("num fiels:", n_files)
+    print("num files:", n_files)
 
     # --- generate dictionary --- #
     print(" [*] generating dictionary")
