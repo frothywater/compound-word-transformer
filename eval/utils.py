@@ -3,10 +3,10 @@ import os
 import re
 
 
-def get_valid_midi(path_root: str):
-    path_valid_dict = os.path.join(path_root, "valid_dict.json")
-    valid_dict: dict = json.load(open(path_valid_dict, "r", encoding="utf-8"))
-    return [key.replace("words/", "midi/").replace(".pkl.npy", "") for key in valid_dict.keys()]
+def get_test_midi(path_root: str):
+    path_test_dict = os.path.join(path_root, "test_dict.json")
+    test_dict: dict = json.load(open(path_test_dict, "r", encoding="utf-8"))
+    return [key.replace("words/", "midi/").replace(".pkl.npy", "") for key in test_dict.keys()]
 
 
 def get_generated_midi(path_root: str, epoch: int, conditional=False):

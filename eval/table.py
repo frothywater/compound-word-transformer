@@ -30,11 +30,11 @@ def get_data(content):
         items = ["mean", "std", "kldiv", "overlap"]
         return [[dict[item][metric] for metric in metrics] for item in items if item in dict]
 
-    epochs = [int(key) for key in content.keys() if key != "valid"]
+    epochs = [int(key) for key in content.keys() if key != "test"]
     train_loss = [content[str(epoch)]["train_loss"] for epoch in epochs]
     valid_loss = [content[str(epoch)]["valid_loss"] for epoch in epochs]
-    raw_data_uncond = metrics_arrays(content["valid"])
-    raw_data_cond = metrics_arrays(content["valid"])
+    raw_data_uncond = metrics_arrays(content["test"])
+    raw_data_cond = metrics_arrays(content["test"])
     for epoch in epochs:
         raw_data_uncond += metrics_arrays(content[str(epoch)]["uncond"])
         raw_data_cond += metrics_arrays(content[str(epoch)]["cond"])
@@ -51,7 +51,7 @@ def multi_index(epochs):
     inner_1 = [("Mean",), ("STD",)]
     inner_2 = [("KLD",), ("OA",)]
     middle = expand("Intra-set", inner_1) + expand("Inter-set", inner_2)
-    result = expand("Validation data", expand("Intra-set", inner_1))
+    result = expand("Testing data", expand("Intra-set", inner_1))
     for epoch in epochs:
         for item in expand(f"Epoch {epoch}", middle):
             result.append(item)

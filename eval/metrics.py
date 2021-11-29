@@ -6,7 +6,7 @@ from sklearn.model_selection import LeaveOneOut
 
 from loss import get_train_loss, get_valid_loss
 from mgeval import core, utils
-from utils import get_generated_midi, get_loss, get_valid_midi
+from utils import get_generated_midi, get_loss, get_test_midi
 
 metrics_shape = {
     "total_used_pitch": (1,),
@@ -62,9 +62,9 @@ def overlap_area(intra, inter):
     return {metric: utils.overlap_area(intra[i], inter[i]) for i, metric in enumerate(metrics)}
 
 
-def metrics_object(gen_midi, features_val, num_samples):
+def metrics_object(gen_midi, features_test, num_samples):
     features_gen = features(gen_midi, num_samples)
-    inter = cross_valid(features_gen, features_val)
+    inter = cross_valid(features_gen, features_test)
     intra_gen = cross_valid(features_gen, features_gen)
 
     mean, std = mean_std(intra_gen)
@@ -83,13 +83,13 @@ def calc_metrics(epochs: range, num_samples: int, path_root: str, path_train: st
     train_losses = get_train_loss(path_train)
     valid_losses = get_valid_loss(path_train)
 
-    print("calculating valid midi...")
-    valid_midi = get_valid_midi(path_root)
-    features_val = features(valid_midi, num_samples)
-    intra_val = cross_valid(features_val, features_val)
-    mean_val, std_val = mean_std(intra_val)
+    print("Calculating testing midi...")
+    test_midi = get_test_midi(path_root)
+    features_test = features(test_midi, num_samples)
+    intra_test = cross_valid(features_test, features_test)
+    mean_test, std_test = mean_std(intra_test)
 
-    result = {"valid": {"mean": mean_val, "std": std_val}}
+    result = {"test": {"mean": mean_test, "std": std_test}}
 
     for epoch in epochs:
         print(f"{epoch=}")
@@ -97,8 +97,8 @@ def calc_metrics(epochs: range, num_samples: int, path_root: str, path_train: st
         cond_midi = get_generated_midi(path_root, epoch, conditional=True)
         train_loss, valid_loss = get_loss(train_losses, valid_losses, epoch)
         result[str(epoch)] = {
-            "uncond": metrics_object(uncond_midi, features_val, num_samples),
-            "cond": metrics_object(cond_midi, features_val, num_samples),
+            "uncond": metrics_object(uncond_midi, features_test, num_samples),
+            "cond": metrics_object(cond_midi, features_test, num_samples),
             "train_loss": train_loss,
             "valid_loss": valid_loss,
         }
