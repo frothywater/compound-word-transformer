@@ -139,7 +139,7 @@ class TransformerXL(object):
         n_token = len(self.event2word)
         model = MemTransformerLM(self.modelConfig, n_token, is_training=self.is_training)
 
-        st_eopch = 0
+        start_epoch = 0
         if pretrain_model:
             checkpoint = torch.load(pretrain_model, map_location="cuda:0")
             print("Pretrained model config:")
@@ -147,19 +147,17 @@ class TransformerXL(object):
             print("best_loss: ", checkpoint["best_loss"])
             print(json.dumps(checkpoint["model_setting"], indent=1, sort_keys=True))
             print(json.dumps(checkpoint["train_setting"], indent=1, sort_keys=True))
-
             try:
                 model.load_state_dict(checkpoint["state_dict"])
                 print("{} loaded.".format(pretrain_model))
             except:
                 print("Loaded weights have different shapes with the model. Please check your model setting.")
                 exit()
-            st_eopch = checkpoint["epoch"] + 1
-
+            start_epoch = checkpoint["epoch"]
         else:
             model.apply(self.weights_init)
             model.word_emb.apply(self.weights_init)
-        return st_eopch, model.to(self.device)
+        return start_epoch, model.to(self.device)
 
     def save_checkpoint(self, state, root, save_freq=10, best_val=False):
         if best_val:
@@ -255,10 +253,10 @@ class TransformerXL(object):
         saver_agent = saver.Saver(checkpoint_dir)
         # prepare model
         if resume_path != "None":
-            st_epoch, model = self.get_model(resume_path)
-            print("Continue to train from {} epoch".format(st_epoch))
+            start_epoch, model = self.get_model(resume_path)
+            print(f"Continue to train from {start_epoch+1} epoch")
         else:
-            st_epoch, model = self.get_model()
+            start_epoch, model = self.get_model()
         # prepare optimizer
         optimizer = optim.AdamW(
             model.parameters(),
@@ -284,7 +282,7 @@ class TransformerXL(object):
         print(">>> Start training")
         torch.manual_seed(train_config["seed"])
 
-        for epoch in range(st_epoch, epoch_count):
+        for epoch in range(start_epoch, epoch_count):
             st_time = time.time()
             train_loss = []
             saver_agent.global_step_increment()
