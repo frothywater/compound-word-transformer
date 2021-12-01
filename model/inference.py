@@ -49,11 +49,11 @@ def inference(path_root: str, epoch: int, inference_config, conditional=False):
             output_path = os.path.join(midi_folder, f"{name}.mid")
             model.inference(
                 model=inner_model,
-                target_bar=32,
+                target_bar_count=32,
                 params={"t": 1.5, "k": 10},
                 output_path=output_path,
-                prompt=words,
-                prompt_bar=4,
+                prompt_words=words,
+                prompt_bar_count=4,
             )
     else:
         num_samples = inference_config["num_sample"]
@@ -61,7 +61,7 @@ def inference(path_root: str, epoch: int, inference_config, conditional=False):
             print(f"-----{idx}/{num_samples}-----")
             print(midi_folder, str(idx))
             output_path = os.path.join(midi_folder, f"{idx}.mid")
-            model.inference(model=inner_model, target_bar=32, params={"t": 1.5, "k": 10}, output_path=output_path)
+            model.inference(model=inner_model, target_bar_count=32, params={"t": 1.5, "k": 10}, output_path=output_path)
 
 
 def main():

@@ -359,11 +359,11 @@ class TransformerXL(object):
     def inference(
         self,
         model: MemTransformerLM,
-        target_bar: int,
+        target_bar_count: int,
         params: dict,
         output_path: str,
-        prompt: list = None,
-        prompt_bar: int = 4,
+        prompt_words: list = None,
+        prompt_bar_count: int = 4,
     ):
         batch_size = 1
         mems: tuple = tuple()
@@ -371,45 +371,55 @@ class TransformerXL(object):
         start_time = time.time()
         model.eval()
 
-        # Feed the prompt, but leave out any outputs
-        words_prompt = []
-        if prompt is not None:
-            bar_count = 0
+        if prompt_words is not None:
+            # Conditional
             # Select words within the given bar range
-            for word in prompt:
-                if word == bar_none_word:
-                    bar_count += 1
-                if bar_count > prompt_bar:
+            current_bar = 0
+            prompt_words_cropped = []
+            for prompt_word in prompt_words:
+                if prompt_word == bar_none_word:
+                    current_bar += 1
+                if current_bar > prompt_bar_count:
                     break
-                words_prompt.append(word)
+                prompt_words_cropped.append(prompt_word)
 
+            # Feed the prompt (until before the last word), but leave out any outputs
             with torch.no_grad():
-                for word in words_prompt:
-                    temp_x = np.zeros((1, batch_size))
-                    temp_x[0][0] = word
-                    x = torch.from_numpy(temp_x).long().to(self.device)
+                for prompt_word in prompt_words_cropped[:-1]:
+                    temp_x_teaching = np.zeros((1, batch_size))
+                    temp_x_teaching[0][0] = prompt_word
+                    x = torch.from_numpy(temp_x_teaching).long().to(self.device)
                     _, mems = model.generate(x, *mems)
 
-        bar_count = prompt_bar if prompt is not None else 0
-        words = [bar_none_word]
-        temp_x = np.zeros((1, batch_size))
-        temp_x[0][0] = words[0]
+            bar_count = prompt_bar_count
+            generated_words = []
+            temp_x = np.zeros((1, batch_size))
+            temp_x[0][0] = prompt_words_cropped[-1]  # Feed the last word in the real inference stage
+        else:
+            # Unconditional
+            bar_count = 0
+            generated_words = [bar_none_word]
+            temp_x = np.zeros((1, batch_size))
+            temp_x[0][0] = bar_none_word
 
         # With the memory, generate the real part
-        while bar_count < target_bar:
+        while bar_count < target_bar_count:
+            # Feed in `temp_x`
             with torch.no_grad():
                 x = torch.from_numpy(temp_x).long().to(self.device)
                 _logits, mems = model.generate(x, *mems)
                 logits = _logits.cpu().squeeze().detach().numpy()
 
+            # Sample with temperature, and optional strategy (top-k or nucleus)
             temperature = params["t"] if "t" in params else 1.0
             probs = self.temperature(logits, temperature)
             if "k" in params:
                 word = self.topk(probs=probs, k=params["k"])
             elif "p" in params:
                 word = self.nucleus(probs=probs, p=params["p"])
-            words.append(word)
+            generated_words.append(word)
 
+            # Set `temp_x` as the last generated word
             temp_x = np.zeros((1, batch_size))
             temp_x[0][0] = word
 
@@ -417,15 +427,16 @@ class TransformerXL(object):
                 bar_count += 1
 
         # Write midi files
-        if prompt is not None:
+        if prompt_words is not None:
             original_output_path = output_path.replace(".mid", "_original.mid")
             generated_output_path = output_path.replace(".mid", "_generated.mid")
-            write_midi(prompt, original_output_path, self.word2event)
-            write_midi(words_prompt + words, generated_output_path, self.word2event)
+            write_midi(prompt_words, original_output_path, self.word2event)
+            write_midi(prompt_words_cropped + generated_words, generated_output_path, self.word2event)
         else:
-            write_midi(words, output_path, self.word2event)
+            write_midi(generated_words, output_path, self.word2event)
+
         used_time = time.time() - start_time
-        print(f"token_count={len(words)}, bar_count={bar_count}, used_time={used_time:.2f}s")
+        print(f"token_count={len(generated_words)}, bar_count={bar_count}, used_time={used_time:.2f}s")
 
     ########################################
     # search strategy: temperature (re-shape)
