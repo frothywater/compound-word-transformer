@@ -67,7 +67,7 @@ def inference(path_root: str, epoch: int, inference_config, conditional=False):
 def main():
     _, train_config, inference_config = get_configs(path_root)
 
-    epochs = get_all_epochs(train_config["experiment_dir"], step=20, max=100)
+    epochs = get_all_epochs(train_config["experiment_dir"], step=20, max=200)
     for epoch in epochs:
         inference(path_root, epoch, inference_config)
         inference(path_root, epoch, inference_config, conditional=True)
