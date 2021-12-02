@@ -63,7 +63,7 @@ def traverse_dir(
     return file_list
 
 
-def proc_one(path_midi, path_outfile):
+def proceed(path_midi, path_outfile, use_chords: bool):
     # --- load --- #
     midi_obj = miditoolkit.midi.parser.MidiFile(path_midi)
 
@@ -91,10 +91,11 @@ def proc_one(path_midi, path_outfile):
 
     # load chords
     chords = []
-    for marker in midi_obj.markers:
-        if marker.text.split("_")[0] != "global" and "Boundary" not in marker.text.split("_")[0]:
-            chords.append(marker)
-    chords.sort(key=lambda x: x.time)
+    if use_chords:
+        for marker in midi_obj.markers:
+            if marker.text.split("_")[0] != "global" and "Boundary" not in marker.text.split("_")[0]:
+                chords.append(marker)
+        chords.sort(key=lambda x: x.time)
 
     # load tempos
     tempos = midi_obj.tempo_changes
@@ -209,7 +210,7 @@ def proc_one(path_midi, path_outfile):
     pickle.dump(song_data, open(path_outfile, "wb"))
 
 
-def midi2corpus(path_root: str):
+def midi2corpus(path_root: str, use_chords=False):
     # paths
     path_indir = os.path.join(path_root, "midi")
     path_outdir = os.path.join(path_root, "corpus")
@@ -229,5 +230,5 @@ def midi2corpus(path_root: str):
         path_infile = os.path.join(path_indir, path_midi)
         path_outfile = os.path.join(path_outdir, path_midi + ".pkl")
 
-        # proc
-        proc_one(path_infile, path_outfile)
+        # proceed
+        proceed(path_infile, path_outfile, use_chords)
