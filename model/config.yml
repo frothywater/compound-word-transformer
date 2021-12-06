@@ -27,7 +27,7 @@ MODEL:
 
 TRAIN: 
     gpuID: '1'
-    train_id: 1
+    train_id: 'wikifonia-melody'
     batch_size: 22
     lr: 0.001
     optim_adam_beta1: 0.9
@@ -38,11 +38,11 @@ TRAIN:
     seed: 2222
     optim: 'adam'
     no_cuda: False
-    resume_training_model: True
+    resume_training_model: False
 
 
 INFERENCE:
     num_sample: 50
     gpuID: '2'
-    train_id: 1
+    train_id: 'wikifonia-melody'
     no_cuda: False

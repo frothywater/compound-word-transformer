@@ -38,7 +38,7 @@ def get_configs(path_root: str):
     inference_config = config["INFERENCE"]
 
     train_id = train_config["train_id"]
-    experiment_dir = os.path.join(path_root, "train", str(train_id))
+    experiment_dir = os.path.join(path_root, "train", train_id)
     print("experiment_dir:", experiment_dir)
     if not os.path.exists(experiment_dir):
         os.makedirs(experiment_dir)
