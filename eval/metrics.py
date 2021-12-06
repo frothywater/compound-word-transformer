@@ -5,7 +5,7 @@ import numpy as np
 from sklearn.model_selection import LeaveOneOut
 
 from mgeval import core, utils
-from utils import get_generated_midi, get_loss_dict, get_test_midi
+from utils import get_generated_midi, get_test_midi
 
 metrics_shape = {
     "total_used_pitch": (1,),
@@ -98,12 +98,6 @@ def calc_metrics(epochs: range, num_samples: int, path_root: str):
         }
 
     path_json = os.path.join(path_root, "eval", "metrics.json")
+    os.makedirs(os.path.dirname(path_json), exist_ok=True)
     with open(path_json, "w") as file:
         json.dump(result, file)
-
-
-if __name__ == "__main__":
-    path_root = "data"
-    epoch_range = range(20, 100 + 1, 20)
-
-    calc_metrics(epochs=epoch_range, num_samples=100, path_root=path_root)
