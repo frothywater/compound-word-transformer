@@ -13,7 +13,8 @@ def main():
     print("[MAIN] events -> words >>>>>")
     events2words(path_root)
     print("[MAIN] words -> npz >>>>>")
-    compile(path_root)
+    compile(path_root, "train")
+    compile(path_root, "valid")
     print("[MAIN] finished! <<<<<")
 
 

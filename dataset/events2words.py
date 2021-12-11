@@ -1,3 +1,4 @@
+import json
 import os
 import pickle
 
@@ -40,6 +41,7 @@ def events2words(path_root: str):
     path_indir = os.path.join(path_root, "events")
     path_outdir = os.path.join(path_root, "words")
     path_dictionary = os.path.join(path_root, "dictionary.pkl")
+    path_dictionary_json = os.path.join(path_root, "dictionary.json")
     os.makedirs(path_outdir, exist_ok=True)
 
     # list files
@@ -62,6 +64,7 @@ def events2words(path_root: str):
 
     # save
     pickle.dump((event2word, word2event), open(path_dictionary, "wb"))
+    json.dump(event2word, open(path_dictionary_json, "w"), indent=2)
 
     # --- converts to word --- #
     event2word, word2event = pickle.load(open(path_dictionary, "rb"))

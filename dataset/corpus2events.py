@@ -97,7 +97,7 @@ def corpus2event_remi_v2(path_infile, path_outfile):
 
             # chord
             if len(t_chords):
-                root, quality, bass = t_chords[0].text.split("_")
+                root, quality = t_chords[0].text.split("_")
                 pos_events.append(create_event("Chord", root + "_" + quality))
 
             # tempo

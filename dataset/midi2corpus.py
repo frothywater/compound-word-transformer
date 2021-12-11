@@ -210,7 +210,7 @@ def proceed(path_midi, path_outfile, use_chords: bool):
     pickle.dump(song_data, open(path_outfile, "wb"))
 
 
-def midi2corpus(path_root: str, use_chords=False):
+def midi2corpus(path_root: str, use_chords=True):
     # paths
     path_indir = os.path.join(path_root, "midi")
     path_outdir = os.path.join(path_root, "corpus")

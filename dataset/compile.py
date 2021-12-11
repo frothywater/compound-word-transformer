@@ -9,8 +9,6 @@ WINDOW_SIZE = 512
 GROUP_SIZE = 5  # Group size should be smaller since the skeleton files are shorter
 MAX_LEN = WINDOW_SIZE * GROUP_SIZE
 COMPILE_TARGET = "XL"  # 'linear', 'XL'
-TEST_COUNT = 50
-VALID_COUNT = 50
 print("[config] MAX_LEN:", MAX_LEN)
 
 
@@ -46,9 +44,9 @@ def traverse_dir(
     return file_list
 
 
-def compile(path_root: str):
+def compile(path_root: str, mode: str):
     # path
-    path_indir = os.path.join(path_root, "words")
+    path_indir = os.path.join(path_root, "words", mode)
 
     # load dictionary
     path_dictionary = os.path.join(path_root, "dictionary.pkl")
@@ -76,8 +74,7 @@ def compile(path_root: str):
         num_words = len(words)
 
         if num_words >= MAX_LEN - 2:  # 2 for room
-            print(" [!] too long:", num_words)
-            continue
+            raise ValueError("Too long: ", num_words)
 
         # arrange IO
         x = words[:-1]
@@ -120,39 +117,13 @@ def compile(path_root: str):
     print(" > y_final:", y_final.shape)
     print(" > mask_final:", mask_final.shape)
 
-    # split train/valid/test
-    nontrain_count = VALID_COUNT + TEST_COUNT
-    nontrain_idx = np.random.choice(num_samples, nontrain_count, replace=False)
-    train_idx = np.setdiff1d(np.arange(num_samples), nontrain_idx)
-    valid_idx = nontrain_idx[:VALID_COUNT]
-    test_idx = nontrain_idx[VALID_COUNT:]
-
-    # build dictionary for testing data
-    test_dict = {name_list[index.item()]: index.item() for index in test_idx}
-    path_test_dict = os.path.join(path_root, "test_dict.json")
-    with open(path_test_dict, "w", encoding="utf-8") as file_json:
-        json.dump(test_dict, file_json, indent=4, sort_keys=True, ensure_ascii=False)
-
-    # save train
-    path_train = os.path.join(path_root, "train_data_{}.npz".format(COMPILE_TARGET))
+    path_data = os.path.join(path_root, f"{mode}_data_{COMPILE_TARGET}.npz")
     np.savez(
-        path_train,
-        x=x_final[train_idx],
-        y=y_final[train_idx],
-        mask=mask_final[train_idx],
-        seq_len=np.array(seq_len_list)[train_idx],
-        num_groups=np.array(num_groups_list)[train_idx],
+        path_data,
+        x=x_final,
+        y=y_final,
+        mask=mask_final,
+        seq_len=np.array(seq_len_list),
+        num_groups=np.array(num_groups_list),
     )
-    print(" > train x:", x_final[train_idx].shape)
-
-    # save valid
-    path_valid = os.path.join(path_root, "valid_data_{}.npz".format(COMPILE_TARGET))
-    np.savez(
-        path_valid,
-        x=x_final[valid_idx],
-        y=y_final[valid_idx],
-        mask=mask_final[valid_idx],
-        seq_len=np.array(seq_len_list)[valid_idx],
-        num_groups=np.array(num_groups_list)[valid_idx],
-    )
-    print(" > valid x:", x_final[valid_idx].shape)
+    print(f" > {mode} x:", x_final.shape)
