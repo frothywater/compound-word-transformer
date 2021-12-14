@@ -13,11 +13,10 @@ path_root = "data"
 
 
 def get_test_words(path_root: str):
-    path_test_dict = os.path.join(path_root, "test_dict.json")
-    test_dict: dict = json.load(open(path_test_dict, "r", encoding="utf-8"))
-    paths = [key for key in test_dict.keys()]
-    names = [os.path.basename(path).replace(".mid.pkl.npy", "") for path in paths]
-    words = [np.load(path) for path in paths]
+    path_test = os.path.join(path_root, "words", "test")
+    files = [os.path.join(path_test, file) for file in os.listdir(path_test)]
+    names = [os.path.basename(file).replace(".mid.pkl.npy", "") for file in files]
+    words = [np.load(file) for file in files]
     return zip(names, words)
 
 
