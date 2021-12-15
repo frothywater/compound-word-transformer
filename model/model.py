@@ -160,9 +160,7 @@ class TransformerXL(object):
         return start_epoch, model.to(self.device)
 
     def save_checkpoint(self, state, root, save_freq=10, best_val=False):
-        if best_val:
-            torch.save(state, os.path.join(root, "model_best_val.pth.tar"))
-        elif state["epoch"] % save_freq == 0:
+        if best_val or state["epoch"] % save_freq == 0:
             torch.save(state, os.path.join(root, "ep_{}.pth.tar".format(state["epoch"])))
 
     def train_loss_record(self, epoch, train_loss, checkpoint_dir, valid_loss=None):
@@ -282,6 +280,10 @@ class TransformerXL(object):
         print(">>> Start training")
         torch.manual_seed(train_config["seed"])
 
+        latest_valid_loss = None
+        times_valid_loss_increased = 0
+        early_stop_patience = 5
+
         for epoch in range(start_epoch, epoch_count):
             st_time = time.time()
             train_loss = []
@@ -339,22 +341,32 @@ class TransformerXL(object):
             print(epoch_info)
 
             self.train_loss_record(epoch, average_train_loss, checkpoint_dir, valid_loss)
-            self.save_checkpoint(
-                {
-                    "epoch": epoch + 1,
-                    "model_setting": self.modelConfig,
-                    "train_setting": train_config,
-                    "state_dict": model.state_dict(),
-                    "best_loss": average_train_loss,
-                    "optimizer": optimizer.state_dict(),
-                },
-                checkpoint_dir,
-                save_freq,
-            )
+            state = {
+                "epoch": epoch + 1,
+                "model_setting": self.modelConfig,
+                "train_setting": train_config,
+                "state_dict": model.state_dict(),
+                "best_loss": average_train_loss,
+                "optimizer": optimizer.state_dict(),
+            }
+            self.save_checkpoint(state, checkpoint_dir, save_freq)
 
             if average_train_loss < 0.01:
                 print("Experiment [{}] finished at loss < 0.01.".format(checkpoint_dir))
                 break
+
+            # Early stopping
+            if valid_data:
+                if latest_valid_loss is not None:
+                    if valid_loss >= latest_valid_loss:
+                        times_valid_loss_increased += 1
+                    else:
+                        times_valid_loss_increased = 0
+                if times_valid_loss_increased >= early_stop_patience:
+                    print("Early stopped.")
+                    self.save_checkpoint(state, checkpoint_dir, best_val=True)
+                    break
+                latest_valid_loss = valid_loss
 
     def inference(
         self,
