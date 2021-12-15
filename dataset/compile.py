@@ -1,15 +1,13 @@
-import json
-import math
 import os
 import pickle
+import random
 
 import numpy as np
 
 WINDOW_SIZE = 512
-GROUP_SIZE = 5  # Group size should be smaller since the skeleton files are shorter
+GROUP_SIZE = 10
 MAX_LEN = WINDOW_SIZE * GROUP_SIZE
 COMPILE_TARGET = "XL"  # 'linear', 'XL'
-print("[config] MAX_LEN:", MAX_LEN)
 
 
 def traverse_dir(
@@ -44,6 +42,42 @@ def traverse_dir(
     return file_list
 
 
+def shifted_sliding_pair(words: list, offset: int, length: int, pad_word: int, eos_word: int) -> tuple:
+    if offset >= len(words):
+        raise ValueError("Too short")
+    x = np.array(words[offset : offset + length])
+    y = np.array(words[offset + 1 : offset + 1 + length])
+    valid_length = len(x)
+    if offset + 1 + length > len(words):
+        # Tail of y exceeds
+        y = np.concatenate([y, [eos_word]])
+        if offset + length > len(words):
+            # Tail of x exceeds
+            x = np.concatenate([x, pad_word * np.ones(length - valid_length)])
+            y = np.concatenate([y, pad_word * np.ones(length - valid_length)])
+    mask = np.concatenate([np.ones(valid_length), np.zeros(length - valid_length)])
+    return x, y, mask, valid_length
+
+
+def get_offsets(length: int, max_length: int, density: int) -> list:
+    offset_count = round(density * (length / max_length - 1) + 1)
+    if offset_count <= 1:
+        return [0]
+    left_point_limit = length - max_length
+    step = left_point_limit // (offset_count - 1)
+    return list(range(0, left_point_limit + 1, step))
+
+
+def pad_with_repetition(array: list, unit_length: int) -> list:
+    result = array.copy()
+    if len(array) % unit_length == 0:
+        return array
+    remain_count = (len(array) // unit_length + 1) * unit_length - len(array)
+    extra = random.sample(result, remain_count)
+    result += extra
+    return result
+
+
 def compile(path_root: str, mode: str):
     # path
     path_indir = os.path.join(path_root, "words", mode)
@@ -71,33 +105,21 @@ def compile(path_root: str, mode: str):
         print("--[{}/{}]-----".format(fidx, n_files))
         file = wordfiles[fidx]
         words = np.load(file)
-        num_words = len(words)
+        word_length = len(words)
 
-        if num_words >= MAX_LEN - 2:  # 2 for room
-            raise ValueError("Too long: ", num_words)
+        for offset in get_offsets(word_length, WINDOW_SIZE, density=60):
+            x, y, mask, valid_length = shifted_sliding_pair(words, offset, WINDOW_SIZE, eos_id, eos_id)
+            x_list.append(x)
+            y_list.append(y)
+            mask_list.append(mask)
+            seq_len_list.append(valid_length)
+            num_groups_list.append(1)
+            name_list.append(file)
 
-        # arrange IO
-        x = words[:-1]
-        y = words[1:]
-        seq_len = len(x)
-        print(" > seq_len:", seq_len)
-
-        # pad with eos
-        x = np.concatenate([x, np.ones(MAX_LEN - seq_len) * eos_id])
-        y = np.concatenate([y, np.ones(MAX_LEN - seq_len) * eos_id])
-        mask = np.concatenate([np.ones(seq_len), np.zeros(MAX_LEN - seq_len)])
-
-        # collect
-        x_list.append(x)
-        y_list.append(y)
-        mask_list.append(mask)
-        seq_len_list.append(seq_len)
-        num_groups_list.append(int(np.ceil(seq_len / WINDOW_SIZE)))
-        name_list.append(file)
-
-    # sort by length (descending)
-    zipped = zip(seq_len_list, x_list, y_list, mask_list, num_groups_list, name_list)
-    seq_len_list, x_list, y_list, mask_list, num_groups_list, name_list = zip(*sorted(zipped, key=lambda x: -x[0]))
+    zipped = list(zip(seq_len_list, x_list, y_list, mask_list, num_groups_list, name_list))
+    padded = pad_with_repetition(zipped, GROUP_SIZE)
+    random.shuffle(padded)
+    seq_len_list, x_list, y_list, mask_list, num_groups_list, name_list = zip(*padded)
 
     print("\n\n[Finished]")
     print(" compile target:", COMPILE_TARGET)
