@@ -280,7 +280,7 @@ class TransformerXL(object):
         print(">>> Start training")
         torch.manual_seed(train_config["seed"])
 
-        latest_valid_loss = None
+        min_valid_loss = None
         times_valid_loss_increased = 0
         early_stop_patience = 5
 
@@ -356,17 +356,14 @@ class TransformerXL(object):
                 break
 
             # Early stopping
-            if valid_data:
-                if latest_valid_loss is not None:
-                    if valid_loss >= latest_valid_loss:
-                        times_valid_loss_increased += 1
-                    else:
-                        times_valid_loss_increased = 0
-                if times_valid_loss_increased >= early_stop_patience:
-                    print("Early stopped.")
-                    self.save_checkpoint(state, checkpoint_dir, best_val=True)
-                    break
-                latest_valid_loss = valid_loss
+            if min_valid_loss is None or valid_loss < min_valid_loss:
+                min_valid_loss = valid_loss
+                times_valid_loss_increased = 0
+            else:
+                times_valid_loss_increased += 1
+            if times_valid_loss_increased >= early_stop_patience:
+                print("Early stopped.")
+                break
 
     def inference(
         self,
