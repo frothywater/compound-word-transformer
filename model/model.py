@@ -372,7 +372,7 @@ class TransformerXL(object):
         params: dict,
         output_path: str,
         prompt_words: list = None,
-        prompt_bar_count: int = 4,
+        prompt_bar_count: int = 1,
     ):
         batch_size = 1
         mems: tuple = tuple()
