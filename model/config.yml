@@ -26,15 +26,15 @@ MODEL:
 
 
 TRAIN: 
-    gpuID: '1'
-    train_id: 'wikifonia-melody'
-    batch_size: 22
+    gpuID: '0'
+    train_id: 'wikifonia-v5'
+    batch_size: 40
     lr: 0.001
     optim_adam_beta1: 0.9
     optim_adam_beta2: 0.98
     weight_decay: 0
     num_epochs: 200
-    save_freq: 10
+    save_freq: 1
     seed: 2222
     optim: 'adam'
     no_cuda: False
@@ -43,6 +43,6 @@ TRAIN:
 
 INFERENCE:
     num_sample: 50
-    gpuID: '2'
-    train_id: 'wikifonia-melody'
+    gpuID: '0'
+    train_id: 'wikifonia-v5'
     no_cuda: False
