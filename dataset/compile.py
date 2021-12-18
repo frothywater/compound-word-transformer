@@ -5,7 +5,7 @@ import random
 import numpy as np
 
 WINDOW_SIZE = 512
-GROUP_SIZE = 10
+GROUP_SIZE = 1
 MAX_LEN = WINDOW_SIZE * GROUP_SIZE
 COMPILE_TARGET = "XL"  # 'linear', 'XL'
 
@@ -59,9 +59,9 @@ def shifted_sliding_pair(words: list, offset: int, length: int, pad_word: int, e
     return x, y, mask, valid_length
 
 
-def get_offsets(length: int, max_length: int, density: int) -> list:
+def get_offsets(length: int, max_length: int, density: int, mode: str) -> list:
     offset_count = round(density * (length / max_length - 1) + 1)
-    if offset_count <= 1:
+    if length <= max_length or offset_count <= 1:
         return [0]
     left_point_limit = length - max_length
     step = left_point_limit // (offset_count - 1)
@@ -107,7 +107,7 @@ def compile(path_root: str, mode: str):
         words = np.load(file)
         word_length = len(words)
 
-        for offset in get_offsets(word_length, WINDOW_SIZE, density=60):
+        for offset in get_offsets(word_length, WINDOW_SIZE, density=5, mode=mode):
             x, y, mask, valid_length = shifted_sliding_pair(words, offset, WINDOW_SIZE, eos_id, eos_id)
             x_list.append(x)
             y_list.append(y)
