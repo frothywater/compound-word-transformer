@@ -282,7 +282,7 @@ class TransformerXL(object):
 
         min_valid_loss = None
         times_valid_loss_increased = 0
-        early_stop_patience = 5
+        early_stop_patience = 10
 
         for epoch in range(start_epoch, epoch_count):
             st_time = time.time()

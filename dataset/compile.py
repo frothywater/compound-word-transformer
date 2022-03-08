@@ -64,7 +64,7 @@ def get_offsets(length: int, max_length: int, density: int, mode: str) -> list:
     if length <= max_length or offset_count <= 1:
         return [0]
     left_point_limit = length - max_length
-    step = left_point_limit // (offset_count - 1)
+    step = left_point_limit // (offset_count - 1) if mode == "train" else 1
     return list(range(0, left_point_limit + 1, step))
 
 
