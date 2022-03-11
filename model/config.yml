@@ -27,7 +27,7 @@ MODEL:
 
 TRAIN: 
     gpuID: '0'
-    train_id: 'wikifonia-v5'
+    train_id: 'other-baseline-v1'
     batch_size: 40
     lr: 0.001
     optim_adam_beta1: 0.9
