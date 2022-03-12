@@ -44,5 +44,6 @@ TRAIN:
 INFERENCE:
     num_sample: 50
     gpuID: '0'
-    train_id: 'wikifonia-v5'
+    train_id: 'other-baseline-v1'
+    epoch: 8
     no_cuda: False

@@ -1,7 +1,10 @@
 import json
 import os
 import re
+import shutil
+from random import sample
 
+import mido
 import yaml
 
 
@@ -54,3 +57,25 @@ def get_configs(path_root: str):
     print("=" * 2, "Inference configs", "=" * 5)
     print(json.dumps(inference_config, indent=1, sort_keys=True))
     return model_config, train_config, inference_config
+
+
+def get_bar_length(midi_file: str):
+    midi = mido.MidiFile(midi_file)
+    return mido.second2tick(midi.length, ticks_per_beat=midi.ticks_per_beat, tempo=500000) / midi.ticks_per_beat / 4
+
+
+def sample_test_files(valid_path: str, test_path: str, count=50):
+    files = os.listdir(valid_path)
+    filtered_files = [file for file in files if get_bar_length(os.path.join(valid_path, file)) >= 32]
+    sampled_files = sample(filtered_files, k=count)
+
+    if os.path.exists(test_path):
+        shutil.rmtree(test_path)
+    os.makedirs(test_path)
+    for file in sampled_files:
+        print(f"{file} length={get_bar_length(os.path.join(valid_path, file))}")
+        shutil.copy(os.path.join(valid_path, file), os.path.join(test_path, file))
+
+
+if __name__ == "__main__":
+    sample_test_files("data/midi/valid", "data/midi/test")

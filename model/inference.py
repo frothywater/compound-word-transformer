@@ -19,18 +19,18 @@ def get_test_words(path_root: str):
     return zip(range(len(names)), names, words), len(names)
 
 
-def inference(path_root: str, epoch: int, inference_config, conditional=False):
+def inference(path_root: str, inference_config, conditional=True):
     os.environ["CUDA_VISIBLE_DEVICES"] = inference_config["gpuID"]
 
     # checkpoint information
     train_id = inference_config["train_id"]
+    epoch = inference_config["epoch"]
     path_checkpoint = os.path.join(path_root, "train", train_id)
     model_path = os.path.join(path_checkpoint, f"ep_{epoch}.pth.tar")
     pretrain_config = yaml.full_load(open(os.path.join(path_checkpoint, "config.yml"), "r"))
     model_config = pretrain_config["MODEL"]
 
-    folder_name = "cond" if conditional else "uncond"
-    midi_folder = os.path.join(path_root, "generated", folder_name, str(epoch))
+    midi_folder = os.path.join(path_root, "generated", f"{train_id}_{epoch}")
     os.makedirs(midi_folder, exist_ok=True)
 
     event2word, word2event = pickle.load(open(os.path.join(path_root, "dictionary.pkl"), "rb"))
@@ -64,13 +64,9 @@ def inference(path_root: str, epoch: int, inference_config, conditional=False):
 
 
 def main():
-    _, train_config, inference_config = get_configs(path_root)
+    _, _, inference_config = get_configs(path_root)
 
-    # epochs = get_all_epochs(train_config["experiment_dir"], step=20)
-    epochs = [6]
-    for epoch in epochs:
-        # inference(path_root, epoch, inference_config)
-        inference(path_root, epoch, inference_config, conditional=True)
+    inference(path_root, inference_config)
 
 
 if __name__ == "__main__":
