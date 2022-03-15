@@ -30,7 +30,7 @@ def inference(path_root: str, inference_config, conditional=True):
     pretrain_config = yaml.full_load(open(os.path.join(path_checkpoint, "config.yml"), "r"))
     model_config = pretrain_config["MODEL"]
 
-    midi_folder = os.path.join(path_root, "generated", f"{train_id}_{epoch}")
+    midi_folder = os.path.join(path_root, "generated")
     os.makedirs(midi_folder, exist_ok=True)
 
     event2word, word2event = pickle.load(open(os.path.join(path_root, "dictionary.pkl"), "rb"))
