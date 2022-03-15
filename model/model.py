@@ -250,7 +250,7 @@ class TransformerXL(object):
         # create saver
         saver_agent = saver.Saver(checkpoint_dir)
         # prepare model
-        if resume_path != "None":
+        if resume_path:
             start_epoch, model = self.get_model(resume_path)
             print(f"Continue to train from {start_epoch+1} epoch")
         else:
@@ -289,8 +289,6 @@ class TransformerXL(object):
             train_loss = []
             saver_agent.global_step_increment()
             model.train()
-            # Choose a random pitch shift in [-3, 3] for each epoch
-            pitch_shift = np.random.choice(np.arange(-3, 4), 1).item()
 
             for bidx in range(num_batches):
                 model.zero_grad()
@@ -298,9 +296,8 @@ class TransformerXL(object):
                 bidx_st = batch_size * bidx
                 bidx_ed = batch_size * (bidx + 1)
                 # get batch
-                # [new] introduce random pitch shift
-                batch_x = train_x[bidx_st:bidx_ed] + pitch_shift * pitch_shift_mask_x[bidx_st:bidx_ed]
-                batch_y = train_y[bidx_st:bidx_ed] + pitch_shift * pitch_shift_mask_y[bidx_st:bidx_ed]
+                batch_x = train_x[bidx_st:bidx_ed]
+                batch_y = train_y[bidx_st:bidx_ed]
                 batch_mask = mask[bidx_st:bidx_ed]
                 n_group = np.max(num_groups[bidx_st:bidx_ed])
                 # process groups

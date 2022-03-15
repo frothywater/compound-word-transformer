@@ -5,7 +5,7 @@ import random
 import numpy as np
 
 WINDOW_SIZE = 512
-GROUP_SIZE = 10
+GROUP_SIZE = 5
 COMPILE_TARGET = "XL"  # 'linear', 'XL'
 
 
