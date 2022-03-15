@@ -5,8 +5,7 @@ import random
 import numpy as np
 
 WINDOW_SIZE = 512
-GROUP_SIZE = 1
-MAX_LEN = WINDOW_SIZE * GROUP_SIZE
+GROUP_SIZE = 10
 COMPILE_TARGET = "XL"  # 'linear', 'XL'
 
 
@@ -59,23 +58,41 @@ def shifted_sliding_pair(words: list, offset: int, length: int, pad_word: int, e
     return x, y, mask, valid_length
 
 
-def get_offsets(length: int, max_length: int, density: int, mode: str) -> list:
-    offset_count = round(density * (length / max_length - 1) + 1)
-    if length <= max_length or offset_count <= 1:
+def get_offsets(length: int, max_length: int, count: int) -> list:
+    if length <= max_length + count or count <= 1:
         return [0]
     left_point_limit = length - max_length
-    step = left_point_limit // (offset_count - 1)
+    step = left_point_limit // (count - 1)
     return list(range(0, left_point_limit + 1, step))
 
 
-def pad_with_repetition(array: list, unit_length: int) -> list:
-    result = array.copy()
-    if len(array) % unit_length == 0:
-        return array
-    remain_count = (len(array) // unit_length + 1) * unit_length - len(array)
-    extra = random.sample(result, remain_count)
-    result += extra
-    return result
+def pad_with_repetition(*arrays, length: int):
+    def _pad_with_repetition(array: list, length: int) -> list:
+        if len(array) > length:
+            raise ValueError("Too long")
+        result = array.copy()
+        for _ in range(length - len(array)):
+            result.append(random.choice(array))
+        return result
+
+    zipped = list(zip(*arrays))
+    padded = _pad_with_repetition(zipped, length)
+    return list(zip(*padded))
+
+
+def shuffle(*arrays):
+    zipped = list(zip(*arrays))
+    random.shuffle(zipped)
+    shuffled = list(zip(*zipped))
+    for i in range(len(arrays)):
+        for j in range(len(arrays[i])):
+            arrays[i][j] = shuffled[i][j]
+
+
+def sample(*arrays, k: int):
+    zipped = list(zip(*arrays))
+    sampled = random.sample(zipped, k)
+    return list(zip(*sampled))
 
 
 def compile(path_root: str, mode: str):
@@ -102,24 +119,30 @@ def compile(path_root: str, mode: str):
 
     # process
     for fidx in range(n_files):
-        print("--[{}/{}]-----".format(fidx, n_files))
         file = wordfiles[fidx]
         words = np.load(file)
         word_length = len(words)
 
-        for offset in get_offsets(word_length, WINDOW_SIZE, density=5, mode=mode):
+        xs, ys, masks, seq_lens = [], [], [], []
+        for offset in get_offsets(word_length, WINDOW_SIZE, count=GROUP_SIZE):
             x, y, mask, valid_length = shifted_sliding_pair(words, offset, WINDOW_SIZE, eos_id, eos_id)
-            x_list.append(x)
-            y_list.append(y)
-            mask_list.append(mask)
-            seq_len_list.append(valid_length)
-            num_groups_list.append(1)
-            name_list.append(file)
+            xs.append(x)
+            ys.append(y)
+            masks.append(mask)
+            seq_lens.append(valid_length)
+        if len(xs) > GROUP_SIZE:
+            xs, ys, masks, seq_lens = sample(xs, ys, masks, seq_lens, k=GROUP_SIZE)
+        if len(xs) < GROUP_SIZE:
+            xs, ys, masks, seq_lens = pad_with_repetition(xs, ys, masks, seq_lens, length=GROUP_SIZE)
+        x_list.append(xs)
+        y_list.append(ys)
+        mask_list.append(masks)
+        seq_len_list.append(seq_lens)
+        num_groups_list.append(len(xs))
+        name_list.append(file)
+        print(f"[{fidx}/{n_files}] {word_length=} group={len(xs)}")
 
-    zipped = list(zip(seq_len_list, x_list, y_list, mask_list, num_groups_list, name_list))
-    padded = pad_with_repetition(zipped, GROUP_SIZE)
-    random.shuffle(padded)
-    seq_len_list, x_list, y_list, mask_list, num_groups_list, name_list = zip(*padded)
+    shuffle(seq_len_list, x_list, y_list, mask_list, num_groups_list, name_list)
 
     print("\n\n[Finished]")
     print(" compile target:", COMPILE_TARGET)
@@ -133,7 +156,6 @@ def compile(path_root: str, mode: str):
         mask_final = np.array(mask_list)
     else:
         raise ValueError("Unknown target:", COMPILE_TARGET)
-    num_samples = len(seq_len_list)
     print(" >   count:",)
     print(" > x_final:", x_final.shape)
     print(" > y_final:", y_final.shape)
