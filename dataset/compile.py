@@ -1,12 +1,14 @@
-import json
 import os
 import pickle
 
 import numpy as np
+from model.utils import event_to_word
+
+from dataset.corpus2events import create_pad_event
 
 TEST_AMOUNT = 50
 WINDOW_SIZE = 512
-GROUP_SIZE = 2
+GROUP_SIZE = 5
 MAX_LEN = WINDOW_SIZE * GROUP_SIZE
 COMPILE_TARGET = "linear"  # 'linear', 'XL'
 print("[config] MAX_LEN:", MAX_LEN)
@@ -70,7 +72,7 @@ def compile(path_root: str, mode: str):
         file = wordfiles[fidx]
         words = np.load(file)
         num_words = len(words)
-        eos_arr = words[-1][None, ...]
+        pad_word = event_to_word(create_pad_event(), event2word)
 
         if num_words >= MAX_LEN - 2:  # 2 for room
             print(" [!] too long:", num_words)
@@ -82,8 +84,8 @@ def compile(path_root: str, mode: str):
         seq_len = len(x)
         print(" > seq_len:", seq_len)
 
-        # pad with eos
-        pad = np.tile(eos_arr, (MAX_LEN - seq_len, 1))
+        # pad
+        pad = np.tile(pad_word, (MAX_LEN - seq_len, 1))
 
         x = np.concatenate([x, pad], axis=0)
         y = np.concatenate([y, pad], axis=0)

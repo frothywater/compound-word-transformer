@@ -69,7 +69,7 @@ def traverse_dir(
   bar-beat: 0:   IGN     
             int: beat position (1...16)
             int: bar (bar)
-      type: 0:   eos    
+      type: 0:   pad    
             1:   metrical
             2:   note
   duration: 0:   IGN
@@ -117,10 +117,10 @@ def create_piano_note_event(pitch, duration, velocity):
     return note_event
 
 
-def create_eos_event():
-    eos_event = compound_event.copy()
-    eos_event["type"] = "EOS"
-    return eos_event
+def create_pad_event():
+    pad_event = compound_event.copy()
+    pad_event["type"] = "Pad"
+    return pad_event
 
 
 # ----------------------------------------------- #
@@ -190,8 +190,7 @@ def corpus2event_cp(path_infile, path_outfile):
     # BAR ending
     final_sequence.append(create_bar_event())
 
-    # EOS
-    final_sequence.append(create_eos_event())
+    # No EOS anymore.
 
     # save
     fn = os.path.basename(path_outfile)

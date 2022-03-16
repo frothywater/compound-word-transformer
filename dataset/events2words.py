@@ -46,7 +46,7 @@ def events2words(path_root: str):
     # list files
     eventfiles = traverse_dir(path_indir, is_pure=True, is_sort=True, extension=("pkl"))
     n_files = len(eventfiles)
-    print("num fiels:", n_files)
+    print("num files:", n_files)
 
     # --- build dictionary --- #
     # all files
@@ -62,6 +62,8 @@ def events2words(path_root: str):
         for event in pickle.load(open(os.path.join(path_indir, file), "rb")):
             for key in class_keys:
                 corpus_kv[key].append(event[key])
+    
+    corpus_kv["type"].append("Pad")
 
     for ckey in class_keys:
         class_unique_vals = sorted(set(corpus_kv[ckey]), key=lambda x: (not isinstance(x, int), x))
