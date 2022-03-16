@@ -52,7 +52,7 @@ def inference(path_root: str, inference_config, conditional=True):
                 params={"t": 1.5, "k": 10},
                 output_path=output_path,
                 prompt_words=words,
-                prompt_bar_count=1,
+                prompt_bar_count=4,
             )
     else:
         num_samples = inference_config["num_sample"]

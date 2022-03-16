@@ -368,8 +368,8 @@ class TransformerXL(object):
         target_bar_count: int,
         params: dict,
         output_path: str,
-        prompt_words: list = None,
-        prompt_bar_count: int = 1,
+        prompt_words: list,
+        prompt_bar_count: int,
     ):
         batch_size = 1
         mems: tuple = tuple()
@@ -431,6 +431,8 @@ class TransformerXL(object):
 
             if word == self.event2word["Bar_None"]:
                 bar_count += 1
+            sys.stdout.write(f"{self.word2event[word]}, {len(generated_words)=}, {bar_count=}\r")
+            sys.stdout.flush()
 
         # Write midi files
         if prompt_words is not None:
