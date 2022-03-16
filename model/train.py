@@ -73,9 +73,12 @@ def train():
     print("train_mask:", train_mask.shape)
 
     # run
+    min_valid_loss = None
+    times_valid_loss_increased = 0
+    early_stop_patience = 10
+
     start_time = time.time()
     for epoch in range(n_epoch):
-
         # train
         train_loss = 0
         model.train()
@@ -158,6 +161,16 @@ def train():
 
         # save model
         saver_agent.save_model(model, name=f"epoch_{epoch}")
+
+        # early stop
+        if min_valid_loss is None or valid_loss < min_valid_loss:
+            min_valid_loss = valid_loss
+            times_valid_loss_increased = 0
+        else:
+            times_valid_loss_increased += 1
+        if times_valid_loss_increased >= early_stop_patience:
+            print("early stopped.")
+            break
 
 
 if __name__ == "__main__":
