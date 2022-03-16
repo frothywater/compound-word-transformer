@@ -56,6 +56,8 @@ def events2words(path_root: str):
         for event in pickle.load(open(os.path.join(path_indir, file), "rb")):
             all_events.append("{}_{}".format(event["name"], event["value"]))
 
+    all_events.append("Pad_None")
+
     # build
     unique_events = sorted(set(all_events), key=lambda x: (not isinstance(x, int), x))
     event2word = {key: i for i, key in enumerate(unique_events)}

@@ -123,8 +123,7 @@ def corpus2event_remi_v2(path_infile, path_outfile):
     # BAR ending
     final_sequence.append(create_event("Bar", None))
 
-    # EOS
-    final_sequence.append(create_event("EOS", None))
+    # No EOS anymore.
 
     # save
     fn = os.path.basename(path_outfile)
