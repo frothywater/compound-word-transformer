@@ -1,21 +1,27 @@
-import json
 import os
 import pickle
-import time
 
 import numpy as np
 import torch
 
 from model import TransformerModel
-from utils import get_config, set_gpu
+from utils import get_config, set_gpu, write_midi
+
+
+def get_test_words(path_root: str):
+    path_test = os.path.join(path_root, "words", "test")
+    files = [os.path.join(path_test, file) for file in os.listdir(path_test)]
+    names = [os.path.basename(file).replace(".mid.pkl.npy", "") for file in files]
+    words = [np.load(file) for file in files]
+    return list(zip(names, words))
 
 
 def inference():
     # load
     config = get_config()
     path_root = config["path_root"]
-    event2word, word2event = pickle.load(open(os.path.join(path_root, "dictionary.pkl"), "rb"))
-    path_generated = config["path_generated"]
+    event2word, word2event = pickle.load(open(os.path.join(path_root, "dataset", "dictionary.pkl"), "rb"))
+    path_generated = os.path.join(path_root, "generated")
     os.makedirs(path_generated, exist_ok=True)
 
     # config
@@ -26,7 +32,15 @@ def inference():
 
     # init model
     set_gpu(config["gpu_id"])
-    model = TransformerModel(n_class, is_training=False)
+    model = TransformerModel(
+        n_token=n_class,
+        d_model=config["d_model"],
+        d_inner=config["d_inner"],
+        n_layer=config["n_layer"],
+        n_head=config["n_head"],
+        dropout=config["dropout"],
+        is_training=False,
+    )
     model.cuda()
     model.eval()
 
@@ -36,15 +50,17 @@ def inference():
     model.load_state_dict(torch.load(load_model))
 
     # generate
-    while sidx < num_songs:
-        start_time = time.time()
-        path_outfile = os.path.join(path_generated, )
+    test_words = get_test_words(path_root)
+    for i, item in enumerate(test_words):
+        name, prompt_words = item
+        print(f"[{i+1}/{len(test_words)}] {name}")
+        output_path = os.path.join(path_generated, f"{name}_generated.mid")
+        original_path = os.path.join(path_generated, f"{name}original.mid")
 
-        res = model.inference_from_scratch(dictionary)
-        write_midi(res, path_outfile, word2event)
+        generated_words = model.inference(prompt_words, prompt_bar_count=4, target_bar_count=32, event2word=event2word)
+        write_midi(generated_words, output_path, word2event)
+        write_midi(prompt_words, original_path, word2event)
 
-        word_len = len(res)
-        print('song time:', song_time)
-        print('word_len:', word_len)
-        words_len_list.append(word_len)
-        song_time_list.append(song_time)
+
+if __name__ == "__main__":
+    inference()

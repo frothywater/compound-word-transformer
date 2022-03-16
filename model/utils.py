@@ -1,7 +1,9 @@
 import os
 
 import miditoolkit
+import numpy as np
 import yaml
+from dataset.corpus2events import create_bar_event
 from miditoolkit.midi.containers import Instrument, Marker, Note, TempoChange
 
 
@@ -12,6 +14,31 @@ def set_gpu(id: int):
 def get_config(path_config: str = "model/config.yml"):
     with open(path_config, "r") as config_file:
         return yaml.safe_load(config_file)
+
+
+def word_to_event(word: list, word2event):
+    return {key: word2event[key][word[i]] for i, key in enumerate(word2event.keys())}
+
+
+def event_to_word(event, event2word):
+    return [event2word[key][event[key]] for key in event2word.keys()]
+
+
+def get_bar_word(event2word):
+    return event_to_word(create_bar_event(), event2word)
+
+
+def crop_words(words: list, bar_length: int, event2word):
+    bar_word = get_bar_word(event2word)
+    result: list = []
+    current_bar_count = 0
+    for word in words:
+        result.append(word)
+        if np.array_equal(word, bar_word):
+            current_bar_count += 1
+        if current_bar_count > bar_length:
+            return result
+    return result
 
 
 def write_midi(words, path_dest, word2event):
@@ -49,11 +76,9 @@ def write_midi(words, path_dest, word2event):
                 pitch = vals[4].split("_")[-1]
                 duration = vals[5].split("_")[-1]
                 velocity = vals[6].split("_")[-1]
-
                 if int(duration) == 0:
                     duration = 60
                 end = current_pos + int(duration)
-
                 all_notes.append(Note(pitch=int(pitch), start=current_pos, end=end, velocity=int(velocity)))
             except:
                 continue

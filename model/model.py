@@ -1,4 +1,5 @@
 import math
+import sys
 
 import numpy as np
 import torch
@@ -7,6 +8,8 @@ from fast_transformers.builders import (RecurrentEncoderBuilder,
                                         TransformerEncoderBuilder)
 from fast_transformers.masking import TriangularCausalMask
 from fast_transformers.utils import make_mirror
+
+from utils import crop_words, get_bar_word
 
 
 class Embeddings(nn.Module):
@@ -228,9 +231,37 @@ class TransformerModel(nn.Module):
         )
         return next_arr
 
-    def inference(self, prompt_words: list, prompt_bar_count: int, target_bar_count: int, event2word, word2event):
+    def inference(self, prompt_words: list, prompt_bar_count: int, target_bar_count: int, event2word):
+        prompt_words = crop_words(prompt_words, prompt_bar_count, event2word)
+        bar_word = get_bar_word(event2word)
+
         with torch.no_grad():
-            pass
+            words = []
+            memory = None
+
+            # teacher forcing (until the last word)
+            for word in prompt_words[:-1]:
+                # x: b, s, f
+                x = torch.from_numpy(np.array([word])).long().cuda().unsqueeze(0)
+                h, y_type, memory = self.forward_hidden(x, memory)
+                words.append(word)
+
+            # continue to generate
+            current_bar = prompt_bar_count
+            words.append(prompt_words[-1])
+            while current_bar < target_bar_count:
+                # x: b, s, f (taken from last generated word)
+                x = torch.from_numpy(np.array([words[-1]])).long().cuda().unsqueeze(0)
+                h, y_type, memory = self.forward_hidden(x, memory)
+                word = self.forward_output_sampling(h, y_type)
+                words.append(word)
+
+                if np.array_equal(word, bar_word):
+                    current_bar += 1
+                sys.stdout.write(f"{len(words)=}, {current_bar=}\r")
+                sys.stdout.flush()
+
+            return words
 
 
 def softmax_with_temperature(logits, temperature):
