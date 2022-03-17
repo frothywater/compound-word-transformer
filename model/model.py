@@ -9,7 +9,7 @@ from fast_transformers.builders import (RecurrentEncoderBuilder,
 from fast_transformers.masking import TriangularCausalMask
 from fast_transformers.utils import make_mirror
 
-from utils import crop_words, get_bar_word
+from utils import crop_words, is_bar_word
 
 
 class Embeddings(nn.Module):
@@ -105,7 +105,7 @@ class TransformerModel(nn.Module):
         loss = torch.sum(loss) / torch.sum(loss_mask)
         return loss
 
-    def forward_hidden(self, x, memory=None):
+    def forward_hidden(self, x, state=None):
         """
         linear transformer: b x s x f
         x: bs, nf
@@ -136,11 +136,11 @@ class TransformerModel(nn.Module):
             return h, y_type
         else:
             pos_emb = pos_emb.squeeze(0)
-            h, memory = self.recurrent_encoder(pos_emb, memory=memory)  # y: s x d_model
+            h, state = self.recurrent_encoder(pos_emb, state=state)  # y: s x d_model
 
             # project type
             y_type = self.proj_type(h)
-            return h, y_type, memory
+            return h, y_type, state
 
     def forward_output(self, h, y):
         """
@@ -210,12 +210,19 @@ class TransformerModel(nn.Module):
         y_velocity = self.proj_velocity(y_)
 
         # sampling gen_cond
-        cur_word_tempo = sampling(y_tempo, t=1.2, p=0.9)
-        cur_word_barbeat = sampling(y_barbeat, t=1.2)
-        cur_word_chord = sampling(y_chord, p=0.99)
-        cur_word_pitch = sampling(y_pitch, p=0.9)
-        cur_word_duration = sampling(y_duration, t=2, p=0.9)
-        cur_word_velocity = sampling(y_velocity, t=5)
+        # cur_word_tempo = sampling(y_tempo, t=1.2, p=0.9)
+        # cur_word_barbeat = sampling(y_barbeat, t=1.2)
+        # cur_word_chord = sampling(y_chord, p=0.99)
+        # cur_word_pitch = sampling(y_pitch, p=0.9)
+        # cur_word_duration = sampling(y_duration, t=2, p=0.9)
+        # cur_word_velocity = sampling(y_velocity, t=5)
+        t, k = 1.2, 5
+        cur_word_tempo = sampling(y_tempo, t=t, k=k)
+        cur_word_barbeat = sampling(y_barbeat, t=t, k=k)
+        cur_word_chord = sampling(y_chord, t=t, k=k)
+        cur_word_pitch = sampling(y_pitch, t=t, k=k)
+        cur_word_duration = sampling(y_duration, t=t, k=k)
+        cur_word_velocity = sampling(y_velocity, t=t, k=k)
 
         # collect
         next_arr = np.array(
@@ -231,19 +238,18 @@ class TransformerModel(nn.Module):
         )
         return next_arr
 
-    def inference(self, prompt_words: list, prompt_bar_count: int, target_bar_count: int, event2word):
-        prompt_words = crop_words(prompt_words, prompt_bar_count, event2word)
-        bar_word = get_bar_word(event2word)
+    def inference(self, prompt_words: list, prompt_bar_count: int, target_bar_count: int, word2event):
+        prompt_words = crop_words(prompt_words, prompt_bar_count, word2event)
 
         with torch.no_grad():
             words = []
-            memory = None
+            state = None
 
             # teacher forcing (until the last word)
             for word in prompt_words[:-1]:
                 # x: b, s, f
-                x = torch.from_numpy(np.array([word])).long().cuda().unsqueeze(0)
-                h, y_type, memory = self.forward_hidden(x, memory)
+                x = torch.from_numpy(np.array(word)).long().cuda().view(1, 1, -1)
+                h, y_type, state = self.forward_hidden(x, state)
                 words.append(word)
 
             # continue to generate
@@ -251,12 +257,12 @@ class TransformerModel(nn.Module):
             words.append(prompt_words[-1])
             while current_bar < target_bar_count:
                 # x: b, s, f (taken from last generated word)
-                x = torch.from_numpy(np.array([words[-1]])).long().cuda().unsqueeze(0)
-                h, y_type, memory = self.forward_hidden(x, memory)
+                x = torch.from_numpy(np.array(words[-1])).long().cuda().view(1, 1, -1)
+                h, y_type, state = self.forward_hidden(x, state)
                 word = self.forward_output_sampling(h, y_type)
                 words.append(word)
 
-                if np.array_equal(word, bar_word):
+                if is_bar_word(word, word2event):
                     current_bar += 1
                 sys.stdout.write(f"{len(words)=}, {current_bar=}\r")
                 sys.stdout.flush()
@@ -294,12 +300,23 @@ def nucleus(probs, p):
     return word
 
 
-def sampling(logit, p=None, t=1.0):
+def topk(probs, k):
+    sorted_index = np.argsort(probs)[::-1]
+    candi_index = sorted_index[:k]
+    candi_probs = [probs[i] for i in candi_index]
+    candi_probs /= sum(candi_probs)
+    word = np.random.choice(candi_index, size=1, p=candi_probs)[0]
+    return word
+
+
+def sampling(logit, t=1.0, p=None, k=None):
     logit = logit.squeeze().cpu().numpy()
     probs = softmax_with_temperature(logits=logit, temperature=t)
 
     if p is not None:
         cur_word = nucleus(probs, p=p)
+    elif k is not None:
+        cur_word = topk(probs, k=k)
     else:
         cur_word = weighted_sampling(probs)
     return cur_word

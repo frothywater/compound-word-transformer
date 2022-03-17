@@ -38,7 +38,7 @@ class Saver(object):
     def save_model(self, model, optimizer=None, dir=None, name="model"):
         if dir is None:
             dir = self.exp_dir
-        print(f" [*] saving model to {dir}, name: {name}")
+        print(f" [*] saving model : {name}")
         torch.save(model.state_dict(), os.path.join(dir, name + "_params.pt"))
         if optimizer is not None:
             torch.save(optimizer.state_dict(), os.path.join(dir, name + "_opt.pt"))

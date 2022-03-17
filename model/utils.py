@@ -1,9 +1,7 @@
 import os
 
 import miditoolkit
-import numpy as np
 import yaml
-from dataset.corpus2events import create_bar_event
 from miditoolkit.midi.containers import Instrument, Marker, Note, TempoChange
 
 
@@ -24,17 +22,17 @@ def event_to_word(event, event2word):
     return [event2word[key][event[key]] for key in event2word.keys()]
 
 
-def get_bar_word(event2word):
-    return event_to_word(create_bar_event(), event2word)
+def is_bar_word(word: list, word2event) -> bool:
+    event = word_to_event(word, word2event)
+    return event["type"] == "Metrical" and event["bar-beat"] == "Bar"
 
 
-def crop_words(words: list, bar_length: int, event2word):
-    bar_word = get_bar_word(event2word)
+def crop_words(words: list, bar_length: int, word2event):
     result: list = []
     current_bar_count = 0
     for word in words:
         result.append(word)
-        if np.array_equal(word, bar_word):
+        if is_bar_word(word, word2event):
             current_bar_count += 1
         if current_bar_count > bar_length:
             return result
@@ -61,7 +59,7 @@ def write_midi(words, path_dest, word2event):
                 bar_count += 1
             elif "Beat" in vals[2]:
                 beat_pos = int(vals[2].split("_")[1])
-                current_pos = bar_count * bar_resolution + beat_pos * tick_resolution
+                current_pos = (bar_count-1) * bar_resolution + beat_pos * tick_resolution
                 # chord
                 if vals[1] != "CONTI" and vals[1] != 0:
                     midi_obj.markers.append(Marker(text=str(vals[1]), time=current_pos))

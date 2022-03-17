@@ -6,11 +6,7 @@ from model.utils import event_to_word
 
 from dataset.corpus2events import create_pad_event
 
-TEST_AMOUNT = 50
-WINDOW_SIZE = 512
-GROUP_SIZE = 5
-MAX_LEN = WINDOW_SIZE * GROUP_SIZE
-COMPILE_TARGET = "linear"  # 'linear', 'XL'
+MAX_LEN = 1024
 print("[config] MAX_LEN:", MAX_LEN)
 
 
@@ -52,7 +48,7 @@ def compile(path_root: str, mode: str):
 
     # load dictionary
     path_dictionary = os.path.join(path_root, "dataset", "dictionary.pkl")
-    event2word, word2event = pickle.load(open(path_dictionary, "rb"))
+    event2word, _ = pickle.load(open(path_dictionary, "rb"))
 
     # load all words
     wordfiles = traverse_dir(path_indir, extension=("npy"))
@@ -63,7 +59,6 @@ def compile(path_root: str, mode: str):
     y_list = []
     mask_list = []
     seq_len_list = []
-    num_groups_list = []
     name_list = []
 
     # process
@@ -96,26 +91,16 @@ def compile(path_root: str, mode: str):
         y_list.append(y)
         mask_list.append(mask)
         seq_len_list.append(seq_len)
-        num_groups_list.append(int(np.ceil(seq_len / WINDOW_SIZE)))
         name_list.append(file)
 
     # sort by length (descending)
-    zipped = zip(seq_len_list, x_list, y_list, mask_list, num_groups_list, name_list)
-    seq_len_list, x_list, y_list, mask_list, num_groups_list, name_list = zip(*sorted(zipped, key=lambda x: -x[0]))
+    zipped = zip(seq_len_list, x_list, y_list, mask_list, name_list)
+    seq_len_list, x_list, y_list, mask_list, name_list = zip(*sorted(zipped, key=lambda x: -x[0]))
 
     print("\n\n[Finished]")
-    print(" compile target:", COMPILE_TARGET)
-    if COMPILE_TARGET == "XL":
-        # reshape
-        x_final = np.array(x_list).reshape(len(x_list), GROUP_SIZE, WINDOW_SIZE, -1)
-        y_final = np.array(y_list).reshape(len(x_list), GROUP_SIZE, WINDOW_SIZE, -1)
-        mask_final = np.array(mask_list).reshape(-1, GROUP_SIZE, WINDOW_SIZE)
-    elif COMPILE_TARGET == "linear":
-        x_final = np.array(x_list)
-        y_final = np.array(y_list)
-        mask_final = np.array(mask_list)
-    else:
-        raise ValueError("Unknown target:", COMPILE_TARGET)
+    x_final = np.array(x_list)
+    y_final = np.array(y_list)
+    mask_final = np.array(mask_list)
 
     # check
     print(" >   count:",)
@@ -131,7 +116,6 @@ def compile(path_root: str, mode: str):
         y=y_final,
         mask=mask_final,
         seq_len=np.array(seq_len_list),
-        num_groups=np.array(num_groups_list),
     )
     print(" > {mode} x:", x_final.shape)
 

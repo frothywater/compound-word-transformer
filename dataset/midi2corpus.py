@@ -63,7 +63,7 @@ def traverse_dir(
     return file_list
 
 
-def proceed(path_midi, path_outfile, use_chords: bool):
+def proceed(path_midi, path_outfile):
     # --- load --- #
     midi_obj = miditoolkit.midi.parser.MidiFile(path_midi)
 
@@ -91,28 +91,16 @@ def proceed(path_midi, path_outfile, use_chords: bool):
 
     # load chords
     chords = []
-    if use_chords:
-        for marker in midi_obj.markers:
-            if marker.text.split("_")[0] != "global" and "Boundary" not in marker.text.split("_")[0]:
-                chords.append(marker)
-        chords.sort(key=lambda x: x.time)
+    for marker in midi_obj.markers:
+        chords.append(marker)
+    chords.sort(key=lambda x: x.time)
 
     # load tempos
     tempos = midi_obj.tempo_changes
     tempos.sort(key=lambda x: x.time)
 
-    # load labels
-    labels = []
-    for marker in midi_obj.markers:
-        if "Boundary" in marker.text.split("_")[0]:
-            labels.append(marker)
-    labels.sort(key=lambda x: x.time)
-
     # load global bpm
     global_bpm = 120
-    for marker in midi_obj.markers:
-        if marker.text.split("_")[0] == "global" and marker.text.split("_")[1] == "bpm":
-            global_bpm = int(marker.text.split("_")[2])
 
     # --- process items to grid --- #
     # compute empty bar offset at head
@@ -181,17 +169,6 @@ def proceed(path_midi, path_outfile, use_chords: bool):
         # append
         tempo_grid[quant_time].append(tempo)
 
-    # process boundary
-    label_grid = collections.defaultdict(list)
-    for label in labels:
-        # quantize
-        label.time = label.time - offset * BAR_RESOL
-        label.time = 0 if label.time < 0 else label.time
-        quant_time = int(np.round(label.time / TICK_RESOL) * TICK_RESOL)
-
-        # append
-        label_grid[quant_time] = [label]
-
     # process global bpm
     global_bpm = DEFAULT_BPM_BINS[np.argmin(abs(DEFAULT_BPM_BINS - global_bpm))]
 
@@ -200,7 +177,6 @@ def proceed(path_midi, path_outfile, use_chords: bool):
         "notes": instr_grid,
         "chords": chord_grid,
         "tempos": tempo_grid,
-        "labels": label_grid,
         "metadata": {"global_bpm": global_bpm, "last_bar": last_bar,},
     }
 
@@ -210,7 +186,7 @@ def proceed(path_midi, path_outfile, use_chords: bool):
     pickle.dump(song_data, open(path_outfile, "wb"))
 
 
-def midi2corpus(path_root: str, use_chords=True):
+def midi2corpus(path_root: str):
     # paths
     path_indir = os.path.join(path_root, "midi")
     path_outdir = os.path.join(path_root, "corpus")
@@ -231,4 +207,4 @@ def midi2corpus(path_root: str, use_chords=True):
         path_outfile = os.path.join(path_outdir, path_midi + ".pkl")
 
         # proceed
-        proceed(path_infile, path_outfile, use_chords)
+        proceed(path_infile, path_outfile)

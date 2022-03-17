@@ -1,4 +1,5 @@
 import collections
+import json
 import os
 import pickle
 
@@ -77,7 +78,9 @@ def events2words(path_root: str):
 
     # save
     path_dictionary = os.path.join(path_root, "dataset", "dictionary.pkl")
+    path_dictionary_json = os.path.join(path_root, "dataset", "dictionary.json")
     pickle.dump((event2word, word2event), open(path_dictionary, "wb"))
+    json.dump((event2word, word2event), open(path_dictionary_json, "w"))
 
     # --- compile each --- #
     # reload

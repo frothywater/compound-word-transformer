@@ -57,7 +57,7 @@ def inference():
         output_path = os.path.join(path_generated, f"{name}_generated.mid")
         original_path = os.path.join(path_generated, f"{name}original.mid")
 
-        generated_words = model.inference(prompt_words, prompt_bar_count=4, target_bar_count=32, event2word=event2word)
+        generated_words = model.inference(prompt_words, prompt_bar_count=4, target_bar_count=32, word2event=word2event)
         write_midi(generated_words, output_path, word2event)
         write_midi(prompt_words, original_path, word2event)
 

@@ -12,6 +12,11 @@ from saver import Saver
 from utils import get_config, set_gpu
 
 
+def losses_str(losses):
+    losses = [loss.item() for loss in losses]
+    tempo, chord, barbeat, type, pitch, duration, velocity = losses
+    return f"{tempo=:.3f}, {chord=:.3f}, {barbeat=:.3f}, {type=:.3f}, {pitch=:.3f}, {duration=:.3f}, {velocity=:.3f}"
+
 def train():
     # load
     config = get_config()
@@ -46,12 +51,16 @@ def train():
 
     # load model
     load_model = config["load_model"]
-    if load_model:
+    if load_model is not None:
         print("[*] load model from:", load_model)
         model.load_state_dict(torch.load(load_model))
 
     # optimizers
-    optimizer = torch.optim.Adam(model.parameters(), lr=config["init_lr"])
+    optimizer = torch.optim.Adam(
+        model.parameters(),
+        lr=config["init_lr"],
+        betas=(config["adam_beta1"], config["adam_beta2"]),
+    )
 
     # unpack
     batch_size = config["batch_size"]
@@ -81,6 +90,7 @@ def train():
     for epoch in range(n_epoch):
         # train
         train_loss = 0
+        train_losses = np.zeros((7,))
         model.train()
         for bidx in range(n_batch):
             saver_agent.global_step_increment()
@@ -103,6 +113,7 @@ def train():
             losses = model.train_step(batch_x, batch_y, batch_mask)
             loss = (losses[0] + losses[1] + losses[2] + losses[3] + losses[4] + losses[5] + losses[6]) / 7
             train_loss += loss.item()
+            train_losses += np.array([loss.item() for loss in losses])
 
             # update
             model.zero_grad()
@@ -112,14 +123,17 @@ def train():
             optimizer.step()
 
             # print
-            sys.stdout.write(f"epoch: {epoch}/{n_epoch}, batch: {bidx}/{n_batch}, loss: {loss.item():04f}\r")
+            sys.stdout.write("\x1b[1A\x1b[2K")
+            sys.stdout.write(f"epoch: {epoch+1}/{n_epoch}, batch: {bidx}/{n_batch}, loss: {loss.item():.4f}\n")
+            sys.stdout.write(f"{losses_str(losses)}\r")
             sys.stdout.flush()
 
             # log
-            saver_agent.add_summary("batch loss", loss.item())
+            saver_agent.add_summary(f"[{epoch+1}] batch loss", loss.item())
 
         # valid
         valid_loss = 0
+        valid_losses = np.zeros((7,))
         model.eval()
         with torch.no_grad():
             for bidx in range(n_batch_valid):
@@ -141,26 +155,33 @@ def train():
                 losses = model.train_step(batch_x, batch_y, batch_mask)
                 loss = (losses[0] + losses[1] + losses[2] + losses[3] + losses[4] + losses[5] + losses[6]) / 7
                 valid_loss += loss.item()
+                valid_losses += np.array([loss.item() for loss in losses])
 
                 # print
-                sys.stdout.write(f"valid: {epoch}/{n_epoch}, batch: {bidx}/{n_batch_valid}, loss: {loss.item():04f}\r")
+                sys.stdout.write("\x1b[1A\x1b[2K")
+                sys.stdout.write(f"valid: {epoch+1}/{n_epoch}, batch: {bidx}/{n_batch_valid}, loss: {loss.item():.4f}\n")
+                sys.stdout.write(f"{losses_str(losses)}\r")
                 sys.stdout.flush()
 
                 # log
-                saver_agent.add_summary("valid batch loss", loss.item())
+                saver_agent.add_summary(f"[{epoch+1}] valid batch loss", loss.item())
 
         # epoch loss
         runtime = time.time() - start_time
         train_loss /= n_batch
+        train_losses /= n_batch
         valid_loss /= n_batch_valid
+        valid_losses /= n_batch_valid
         print(
-            f"epoch: {epoch}/{n_epoch}, train loss: {train_loss}, valid loss: {valid_loss}, time: {datetime.timedelta(seconds=runtime)}"
+            f"epoch: {epoch+1}/{n_epoch}, train loss: {train_loss:.4f}, valid loss: {valid_loss:.4f}, time: {datetime.timedelta(seconds=runtime)}"
         )
-        saver_agent.add_summary("train loss", train_loss)
-        saver_agent.add_summary("valid loss", valid_loss)
+        print(f"train: {losses_str(train_losses)}")
+        print(f"valid: {losses_str(valid_losses)}")
+        saver_agent.add_summary(f"[{epoch+1}] train loss", train_loss)
+        saver_agent.add_summary(f"[{epoch+1}] valid loss", valid_loss)
 
         # save model
-        saver_agent.save_model(model, name=f"epoch_{epoch}")
+        saver_agent.save_model(model, name=f"epoch_{epoch+1}")
 
         # early stop
         if min_valid_loss is None or valid_loss < min_valid_loss:

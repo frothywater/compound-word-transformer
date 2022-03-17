@@ -204,6 +204,7 @@ def corpus2events(path_root: str):
     path_indir = os.path.join(path_root, "corpus")
     path_outdir = os.path.join(path_root, "events")
     os.makedirs(path_outdir, exist_ok=True)
+    os.makedirs(os.path.join(path_root, "dataset"), exist_ok=True)
 
     # list files
     midifiles = traverse_dir(path_indir, extension=("pkl"), is_pure=True, is_sort=True)
@@ -226,5 +227,5 @@ def corpus2events(path_root: str):
         len_list.append(num_tokens)
 
     # plot
-    plot_hist(len_list, os.path.join(path_root, "num_tokens.png"))
+    plot_hist(len_list, os.path.join(path_root, "dataset", "num_tokens.png"))
 
