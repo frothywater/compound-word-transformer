@@ -45,5 +45,5 @@ INFERENCE:
     num_sample: 50
     gpuID: '2'
     train_id: 'wikifonia-0316'
-    epoch: 11
+    epoch: 13
     no_cuda: False
