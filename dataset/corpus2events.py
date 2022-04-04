@@ -158,5 +158,5 @@ def corpus2events(path_root: str):
         len_list.append(num_tokens)
 
     # plot
-    plot_hist(len_list, os.path.join(path_root, "num_tokens.png"))
+    plot_hist(len_list, os.path.join(path_root, "dataset", "num_tokens.png"))
 

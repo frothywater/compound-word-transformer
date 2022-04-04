@@ -40,33 +40,13 @@ def traverse_dir(
 def events2words(path_root: str):
     path_indir = os.path.join(path_root, "events")
     path_outdir = os.path.join(path_root, "words")
-    path_dictionary = os.path.join(path_root, "dictionary.pkl")
-    path_dictionary_json = os.path.join(path_root, "dictionary.json")
+    path_dictionary = os.path.join(path_root, "dataset", "dictionary.pkl")
     os.makedirs(path_outdir, exist_ok=True)
 
     # list files
     eventfiles = traverse_dir(path_indir, is_pure=True, is_sort=True, extension=("pkl"))
     n_files = len(eventfiles)
     print("num files:", n_files)
-
-    # --- generate dictionary --- #
-    print(" [*] generating dictionary")
-    all_events = []
-    for file in eventfiles:
-        for event in pickle.load(open(os.path.join(path_indir, file), "rb")):
-            all_events.append("{}_{}".format(event["name"], event["value"]))
-
-    all_events.append("Pad_None")
-
-    # build
-    unique_events = sorted(set(all_events), key=lambda x: (not isinstance(x, int), x))
-    event2word = {key: i for i, key in enumerate(unique_events)}
-    word2event = {i: key for i, key in enumerate(unique_events)}
-    print(" > num classes:", len(word2event))
-
-    # save
-    pickle.dump((event2word, word2event), open(path_dictionary, "wb"))
-    json.dump(event2word, open(path_dictionary_json, "w"), indent=2)
 
     # --- converts to word --- #
     event2word, word2event = pickle.load(open(path_dictionary, "rb"))

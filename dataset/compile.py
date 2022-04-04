@@ -1,5 +1,6 @@
 import os
 import pickle
+import random
 
 import numpy as np
 
@@ -46,7 +47,7 @@ def compile(path_root: str, mode: str):
     path_indir = os.path.join(path_root, "words", mode)
 
     # load dictionary
-    path_dictionary = os.path.join(path_root, "dictionary.pkl")
+    path_dictionary = os.path.join(path_root, "dataset", "dictionary.pkl")
     event2word, word2event = pickle.load(open(path_dictionary, "rb"))
     pad_id = event2word["Pad_None"]
     print(" > pad_id:", pad_id)
@@ -69,13 +70,15 @@ def compile(path_root: str, mode: str):
         words = np.load(file)
         word_length = len(words)
 
-        if word_length >= MAX_LEN - 2:  # 2 for room
-            print(" [!] too long:", word_length)
-            continue
-
         words_x, words_y = words[:-1], words[1:]
+
+        if mode == "valid":
+            offsets = [random.randint(0, word_length - WINDOW_SIZE - 1)] if word_length > WINDOW_SIZE else [0]
+        else:
+            offsets = list(range(0, min(word_length-1, MAX_LEN), WINDOW_SIZE))
+
         x_group, y_group, mask_group = [], [], []
-        for offset in range(0, word_length, WINDOW_SIZE):
+        for offset in offsets:
             x = words_x[offset : offset + WINDOW_SIZE]
             y = words_y[offset : offset + WINDOW_SIZE]
             valid_length = len(x)
@@ -118,12 +121,12 @@ def compile(path_root: str, mode: str):
         mask_final = np.array(mask_list)
     else:
         raise ValueError("Unknown target:", COMPILE_TARGET)
-    print(" >   count:",)
+    print(" >   count:")
     print(" > x_final:", x_final.shape)
     print(" > y_final:", y_final.shape)
     print(" > mask_final:", mask_final.shape)
 
-    path_data = os.path.join(path_root, f"{mode}_data_{COMPILE_TARGET}.npz")
+    path_data = os.path.join(path_root, "dataset", f"{mode}_data_{COMPILE_TARGET}.npz")
     np.savez(
         path_data,
         x=x_final,
