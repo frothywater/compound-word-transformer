@@ -49,41 +49,11 @@ def events2words(path_root: str):
     n_files = len(eventfiles)
     print("num files:", n_files)
 
-    # --- build dictionary --- #
-    # all files
     class_keys = pickle.load(open(os.path.join(path_indir, eventfiles[0]), "rb"))[0].keys()
     print("class keys:", class_keys)
 
-    # define dictionary
-    event2word = {}
-    word2event = {}
-
-    corpus_kv = collections.defaultdict(list)
-    for file in eventfiles:
-        for event in pickle.load(open(os.path.join(path_indir, file), "rb")):
-            for key in class_keys:
-                corpus_kv[key].append(event[key])
-    
-    corpus_kv["type"].append("Pad")
-
-    for ckey in class_keys:
-        class_unique_vals = sorted(set(corpus_kv[ckey]), key=lambda x: (not isinstance(x, int), x))
-        event2word[ckey] = {key: i for i, key in enumerate(class_unique_vals)}
-        word2event[ckey] = {i: key for i, key in enumerate(class_unique_vals)}
-
-    # print
-    print("[class size]")
-    for key in class_keys:
-        print(" > {:10s}: {}".format(key, len(event2word[key])))
-
-    # save
-    path_dictionary = os.path.join(path_root, "dataset", "dictionary.pkl")
-    path_dictionary_json = os.path.join(path_root, "dataset", "dictionary.json")
-    pickle.dump((event2word, word2event), open(path_dictionary, "wb"))
-    json.dump((event2word, word2event), open(path_dictionary_json, "w"))
-
     # --- compile each --- #
-    # reload
+    path_dictionary = os.path.join(path_root, "dataset", "dictionary.pkl")
     event2word, word2event = pickle.load(open(path_dictionary, "rb"))
     for fidx in range(len(eventfiles)):
         file = eventfiles[fidx]

@@ -1,5 +1,6 @@
 import os
 import pickle
+import random
 
 import numpy as np
 from model.utils import event_to_word
@@ -8,6 +9,37 @@ from dataset.corpus2events import create_pad_event
 
 MAX_LEN = 1024
 print("[config] MAX_LEN:", MAX_LEN)
+
+def shifted_sliding_pair(words: list, offset: int, length: int, pad_word) -> tuple:
+    if offset >= len(words):
+        raise ValueError("Too short")
+    x = np.array(words[offset : offset + length])
+    y = np.array(words[offset + 1 : offset + 1 + length])
+    current_length = len(x)
+    mask = np.concatenate([np.ones(current_length), np.zeros(length - current_length)])
+    if offset + 1 + length > len(words):
+        # Tail of y exceeds
+        y = np.concatenate([y, [pad_word]])
+        if offset + length > len(words):
+            # Tail of x exceeds
+            pad = np.tile(pad_word, (length - current_length, 1))
+            x = np.concatenate([x, pad])
+            y = np.concatenate([y, pad])
+    return x, y, mask, current_length
+
+
+def get_offsets(length: int, max_length: int, density: int, mode: str) -> list:
+    if mode == "valid":
+        if length <= max_length:
+            return [0]
+        else:
+            return [random.randint(0, length - max_length - 1)]
+    offset_count = round(density * (length / max_length - 1) + 1)
+    if offset_count <= 1:
+        return [0]
+    left_point_limit = length - max_length
+    step = left_point_limit // (offset_count - 1)
+    return list(range(0, left_point_limit + 1, step))
 
 
 def traverse_dir(
@@ -59,43 +91,28 @@ def compile(path_root: str, mode: str):
     y_list = []
     mask_list = []
     seq_len_list = []
-    name_list = []
+
+    pad_word = event_to_word(create_pad_event(), event2word)
 
     # process
     for fidx in range(n_files):
-        print("--[{}/{}]-----".format(fidx, n_files))
         file = wordfiles[fidx]
         words = np.load(file)
-        num_words = len(words)
-        pad_word = event_to_word(create_pad_event(), event2word)
+        word_length = len(words)
 
-        if num_words >= MAX_LEN - 2:  # 2 for room
-            print(" [!] too long:", num_words)
-            continue
+        offsets = get_offsets(word_length, MAX_LEN, density=20, mode=mode)
+        for offset in offsets:
+            x, y, mask, length = shifted_sliding_pair(words, offset, MAX_LEN, pad_word)
+            x_list.append(x)
+            y_list.append(y)
+            mask_list.append(mask)
+            seq_len_list.append(length)
 
-        # arrange IO
-        x = words[:-1].copy()
-        y = words[1:].copy()
-        seq_len = len(x)
-        print(" > seq_len:", seq_len)
-
-        # pad
-        pad = np.tile(pad_word, (MAX_LEN - seq_len, 1))
-
-        x = np.concatenate([x, pad], axis=0)
-        y = np.concatenate([y, pad], axis=0)
-        mask = np.concatenate([np.ones(seq_len), np.zeros(MAX_LEN - seq_len)])
-
-        # collect
-        x_list.append(x)
-        y_list.append(y)
-        mask_list.append(mask)
-        seq_len_list.append(seq_len)
-        name_list.append(file)
+        print(f"[{fidx}/{n_files}] {word_length=} {len(offsets)=}")
 
     # sort by length (descending)
-    zipped = zip(seq_len_list, x_list, y_list, mask_list, name_list)
-    seq_len_list, x_list, y_list, mask_list, name_list = zip(*sorted(zipped, key=lambda x: -x[0]))
+    zipped = zip(seq_len_list, x_list, y_list, mask_list)
+    seq_len_list, x_list, y_list, mask_list = zip(*sorted(zipped, key=lambda x: -x[0]))
 
     print("\n\n[Finished]")
     x_final = np.array(x_list)
