@@ -53,22 +53,30 @@ class TransformerModel(nn.Module):
         self.d_head = d_model // n_head
         self.d_inner = d_inner
         self.loss_func = nn.CrossEntropyLoss(reduction="none")
-        self.emb_sizes = [128, 256, 64, 32, 512, 128, 128]
+        self.emb_sizes = {
+            "tempo": 128,
+            "chord": 256,
+            "bar-beat": 64,
+            "type": 32,
+            "pitch": 512,
+            "duration": 128,
+            "velocity": 128,
+        }
 
         # --- modules config --- #
         # embeddings
-        print(">>>>>:", self.n_token)
-        self.word_emb_tempo = Embeddings(self.n_token[0], self.emb_sizes[0])
-        self.word_emb_chord = Embeddings(self.n_token[1], self.emb_sizes[1])
-        self.word_emb_barbeat = Embeddings(self.n_token[2], self.emb_sizes[2])
-        self.word_emb_type = Embeddings(self.n_token[3], self.emb_sizes[3])
-        self.word_emb_pitch = Embeddings(self.n_token[4], self.emb_sizes[4])
-        self.word_emb_duration = Embeddings(self.n_token[5], self.emb_sizes[5])
-        self.word_emb_velocity = Embeddings(self.n_token[6], self.emb_sizes[6])
+        self.word_emb_tempo = Embeddings(self.n_token["tempo"], self.emb_sizes["tempo"])
+        self.word_emb_chord = Embeddings(self.n_token["chord"], self.emb_sizes["chord"])
+        self.word_emb_barbeat = Embeddings(self.n_token["bar-beat"], self.emb_sizes["bar-beat"])
+        self.word_emb_type = Embeddings(self.n_token["type"], self.emb_sizes["type"])
+        self.word_emb_pitch = Embeddings(self.n_token["pitch"], self.emb_sizes["pitch"])
+        self.word_emb_duration = Embeddings(self.n_token["duration"], self.emb_sizes["duration"])
+        self.word_emb_velocity = Embeddings(self.n_token["velocity"], self.emb_sizes["velocity"])
         self.pos_emb = PositionalEncoding(self.d_model, self.dropout)
 
         # linear
-        self.in_linear = nn.Linear(np.sum(self.emb_sizes), self.d_model)
+        total_emb_size = sum(self.emb_sizes.values())
+        self.in_linear = nn.Linear(total_emb_size, self.d_model)
 
         self.is_training = is_training
 
@@ -91,13 +99,13 @@ class TransformerModel(nn.Module):
         self.project_concat_type = nn.Linear(self.d_model + 32, self.d_model)
 
         # individual output
-        self.proj_tempo = nn.Linear(self.d_model, self.n_token[0])
-        self.proj_chord = nn.Linear(self.d_model, self.n_token[1])
-        self.proj_barbeat = nn.Linear(self.d_model, self.n_token[2])
-        self.proj_type = nn.Linear(self.d_model, self.n_token[3])
-        self.proj_pitch = nn.Linear(self.d_model, self.n_token[4])
-        self.proj_duration = nn.Linear(self.d_model, self.n_token[5])
-        self.proj_velocity = nn.Linear(self.d_model, self.n_token[6])
+        self.proj_tempo = nn.Linear(self.d_model, self.n_token["tempo"])
+        self.proj_chord = nn.Linear(self.d_model, self.n_token["chord"])
+        self.proj_barbeat = nn.Linear(self.d_model, self.n_token["bar-beat"])
+        self.proj_type = nn.Linear(self.d_model, self.n_token["type"])
+        self.proj_pitch = nn.Linear(self.d_model, self.n_token["pitch"])
+        self.proj_duration = nn.Linear(self.d_model, self.n_token["duration"])
+        self.proj_velocity = nn.Linear(self.d_model, self.n_token["velocity"])
 
     def compute_loss(self, predict, target, loss_mask):
         loss = self.loss_func(predict, target)

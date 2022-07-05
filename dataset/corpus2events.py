@@ -72,10 +72,10 @@ def traverse_dir(
       type: 0:   pad    
             1:   metrical
             2:   note
-  duration: 0:   IGN
-            int: length
      pitch: 0:   IGN
             int: pitch
+  duration: 0:   IGN
+            int: length
   velocity: 0:   IGN    
             int: velocity
 """

@@ -16,24 +16,22 @@ def get_test_words(path_root: str):
     return list(zip(names, words))
 
 
-def inference():
+def inference(prompt_bar: int, target_bar: int):
     # load
     config = get_config()
     path_root = config["path_root"]
     event2word, word2event = pickle.load(open(os.path.join(path_root, "dataset", "dictionary.pkl"), "rb"))
-    path_generated = os.path.join(path_root, "generated")
+    path_generated = os.path.join(path_root, "generated", f"prompt-{prompt_bar}-target-{target_bar}")
     os.makedirs(path_generated, exist_ok=True)
 
     # config
-    n_class = []
-    for key in event2word.keys():
-        n_class.append(len(event2word[key]))
-    print("num of classes:", n_class)
+    n_token = {event_type: len(events) for event_type, events in event2word.items()}
+    print(n_token)
 
     # init model
     set_gpu(config["gpu_id"])
     model = TransformerModel(
-        n_token=n_class,
+        n_token=n_token,
         d_model=config["d_model"],
         d_inner=config["d_inner"],
         n_layer=config["n_layer"],
@@ -57,10 +55,10 @@ def inference():
         output_path = os.path.join(path_generated, f"{name}_generated.mid")
         original_path = os.path.join(path_generated, f"{name}original.mid")
 
-        generated_words = model.inference(prompt_words, prompt_bar_count=4, target_bar_count=32, word2event=word2event)
+        generated_words = model.inference(prompt_words, prompt_bar_count=prompt_bar, target_bar_count=target_bar, word2event=word2event)
         write_midi(generated_words, output_path, word2event)
         write_midi(prompt_words, original_path, word2event)
 
 
 if __name__ == "__main__":
-    inference()
+    inference(4, 32)

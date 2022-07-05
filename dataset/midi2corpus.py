@@ -92,7 +92,8 @@ def proceed(path_midi, path_outfile):
     # load chords
     chords = []
     for marker in midi_obj.markers:
-        chords.append(marker)
+        if marker.text.split("_")[0] != "keymode":
+            chords.append(marker)
     chords.sort(key=lambda x: x.time)
 
     # load tempos

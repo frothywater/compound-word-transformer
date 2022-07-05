@@ -17,13 +17,13 @@ def build_dictionary(path_root: str):
     os.makedirs(os.path.join(path_root, "dataset"), exist_ok=True)
 
     event_dict = {}
-    event_dict["type"] = ["Pad", "Metrical", "Note"]
-    event_dict["bar-beat"] = [0, "Bar"] + [f"Beat_{value}" for value in beat_range]
     event_dict["tempo"] = [0, "CONTI"] + [f"Tempo_{value}" for value in tempo_range]
-    event_dict["pitch"] = [0] + [f"Note_Pitch_{value}" for value in pitch_range]
-    event_dict["velocity"] = [0] + [f"Note_Velocity_{value}" for value in velocity_range]
-    event_dict["duration"] = [0] + [f"Note_Duration_{value}" for value in duration_range]
     event_dict["chord"] = [0, "CONTI"] + chords
+    event_dict["bar-beat"] = [0, "Bar"] + [f"Beat_{value}" for value in beat_range]
+    event_dict["type"] = ["Pad", "Metrical", "Note"]
+    event_dict["pitch"] = [0] + [f"Note_Pitch_{value}" for value in pitch_range]
+    event_dict["duration"] = [0] + [f"Note_Duration_{value}" for value in duration_range]
+    event_dict["velocity"] = [0] + [f"Note_Velocity_{value}" for value in velocity_range]
 
     event2word = {event_type: {event: word for word, event in enumerate(events)} for event_type, events in event_dict.items()}
     word2event = {event_type: {word: event for word, event in enumerate(events)} for event_type, events in event_dict.items()}

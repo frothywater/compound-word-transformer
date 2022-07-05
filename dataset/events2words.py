@@ -66,6 +66,7 @@ def events2words(path_root: str):
         print(" >   to:", path_outfile)
 
         words = []
+        # omg. Please mention the order of elements in word array.
         for eidx, e in enumerate(events_list):
             words_tmp = [event2word[k][e[k]] for k in class_keys]
             words.append(words_tmp)
