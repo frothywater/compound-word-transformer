@@ -15,11 +15,12 @@ def main():
     model_config, train_config, _ = get_configs(path_root)
 
     # load dictionary
-    event2word, word2event = pickle.load(open(os.path.join(path_root, "dictionary.pkl"), "rb"))
+    event2word, word2event = pickle.load(open(os.path.join(path_root, "dataset", "dictionary.pkl"), "rb"))
 
     # load train data
-    training_data = np.load(os.path.join(path_root, "train_data_XL.npz"))
-    valid_data = np.load(os.path.join(path_root, "valid_data_XL.npz"))
+    training_data = np.load(os.path.join(path_root, "dataset", "train_data_XL.npz"))
+    # valid_data = np.load(os.path.join(path_root, "dataset", "valid_data_XL.npz"))
+    valid_data = None
 
     gpuID = train_config["gpuID"]
     device = torch.device(f"cuda:{gpuID}" if not train_config["no_cuda"] and torch.cuda.is_available() else "cpu")
@@ -27,8 +28,7 @@ def main():
 
     print("Device to train:", device)
 
-    resume = train_config["resume_training_model"]
-    resume_path = get_path_last_model(train_config["experiment_dir"]) if resume else None
+    resume_path = train_config["resume_training_model"]
 
     # declare model
     model = TransformerXL(model_config, device, event2word=event2word, word2event=word2event, is_training=True)

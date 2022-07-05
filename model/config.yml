@@ -26,24 +26,24 @@ MODEL:
 
 
 TRAIN: 
-    gpuID: '2'
-    train_id: 'wikifonia-0316'
-    batch_size: 24
+    gpuID: '0'
+    train_id: 'wikifonia-0626'
+    batch_size: 10
     lr: 0.001
     optim_adam_beta1: 0.9
     optim_adam_beta2: 0.98
     weight_decay: 0
-    num_epochs: 200
+    num_epochs: 400
     save_freq: 1
     seed: 2222
     optim: 'adam'
     no_cuda: False
-    resume_training_model: False
+    resume_training_model: 
 
 
 INFERENCE:
     num_sample: 50
-    gpuID: '2'
-    train_id: 'wikifonia-0316'
-    epoch: 13
+    gpuID: '0'
+    train_id: 'wikifonia-0626'
+    epoch: 400
     no_cuda: False

@@ -274,15 +274,12 @@ class TransformerXL(object):
         mask = train_data["mask"]
         num_groups = train_data["num_groups"]
         num_batches = len(train_x) // batch_size
-        # create note masks for pitch shifting
-        pitch_shift_mask_x = self.note_word_mask(train_x)
-        pitch_shift_mask_y = self.note_word_mask(train_y)
         print(">>> Start training")
         torch.manual_seed(train_config["seed"])
 
         min_valid_loss = None
         times_valid_loss_increased = 0
-        early_stop_patience = 10
+        early_stop_patience = 5
 
         for epoch in range(start_epoch, epoch_count):
             st_time = time.time()
@@ -323,6 +320,7 @@ class TransformerXL(object):
                 optimizer.step()
 
             # validate
+            valid_loss = 0
             if valid_data:
                 valid_loss = self.validate(valid_data, batch_size, model)
                 saver_agent.add_summary("valid loss", valid_loss)
@@ -353,14 +351,15 @@ class TransformerXL(object):
                 break
 
             # Early stopping
-            if min_valid_loss is None or valid_loss < min_valid_loss:
-                min_valid_loss = valid_loss
-                times_valid_loss_increased = 0
-            else:
-                times_valid_loss_increased += 1
-            if times_valid_loss_increased >= early_stop_patience:
-                print("Early stopped.")
-                break
+            if valid_data is not None:
+                if min_valid_loss is None or valid_loss < min_valid_loss:
+                    min_valid_loss = valid_loss
+                    times_valid_loss_increased = 0
+                else:
+                    times_valid_loss_increased += 1
+                if times_valid_loss_increased >= early_stop_patience:
+                    print("Early stopped.")
+                    break
 
     def inference(
         self,

@@ -93,7 +93,7 @@ def proceed(path_midi, path_outfile, use_chords: bool):
     chords = []
     if use_chords:
         for marker in midi_obj.markers:
-            if marker.text.split("_")[0] != "global" and "Boundary" not in marker.text.split("_")[0]:
+            if marker.text.split("_")[0] != "keymode":
                 chords.append(marker)
         chords.sort(key=lambda x: x.time)
 
