@@ -42,7 +42,7 @@ def write_midi(words, path_midi, word2event):
             bar_cnt += 1
         elif name == "Beat":
             cur_beat = int(attr[1])
-            cur_pos = bar_cnt * BAR_RESOL + cur_beat * TICK_RESOL
+            cur_pos = (bar_cnt-1) * BAR_RESOL + cur_beat * TICK_RESOL
         elif name == "Chord":
             chord_text = attr[1] + "_" + attr[2]
             midi_obj.markers.append(Marker(text=chord_text, time=cur_pos))
@@ -408,7 +408,7 @@ class TransformerXL(object):
             temp_x[0][0] = bar_none_word
 
         # With the memory, generate the real part
-        while bar_count < target_bar_count:
+        while bar_count <= target_bar_count:
             # Feed in `temp_x`
             with torch.no_grad():
                 x = torch.from_numpy(temp_x).long().to(self.device)
